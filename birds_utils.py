@@ -1,9 +1,29 @@
+from pathlib import Path
+import os.path
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
 class BIRDS :
-  def __init__(self,image_df):
-    self.image_df = image_df
+  def __init__(self):
+    self.image_df = None
+  
+  # load the images into a data frame
+  def load_data(self,project_dir):
+    image_dir = Path(project_dir + '/data')
+    filepaths = list(image_dir.glob(r'**/*.JPG')) + list(image_dir.glob(r'**/*.jpg')) + list(image_dir.glob(r'**/*.png')) + list(image_dir.glob(r'**/*.png'))
+    labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
+
+    filepaths = pd.Series(filepaths, name='Filepath').astype(str)
+    labels = pd.Series(labels, name='Label')
+
+    # Concatenate filepaths and labels
+    self.image_df = pd.concat([filepaths, labels], axis=1)
+
 
   def get_label_idx(self,label):
-    idx = list(image_df[image_df['Label'].isin([label])].index)
+    idx = list(self.image_df[self.image_df['Label'].isin([label])].index)
     if (len(idx)==0):
       print(f'{label} does not exist in the df')
     return idx
@@ -43,4 +63,3 @@ class BIRDS :
     plt.show()
 
 
-birds = BIRDS(image_df)
