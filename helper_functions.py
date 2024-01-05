@@ -135,6 +135,7 @@ def pred_and_plot(model, filename, class_names):
 import datetime
 
 def create_tensorboard_callback(dir_name, experiment_name):
+  print('entered to create_tensorboard_callback')
   """
   Creates a TensorBoard callback instand to store log files.
 
