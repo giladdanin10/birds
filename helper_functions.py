@@ -287,3 +287,51 @@ def calculate_results(y_true, y_pred):
                   "recall": model_recall,
                   "f1": model_f1}
   return model_results
+
+
+def compute_ela_cv(path, quality):
+    temp_filename = 'temp_file_name.jpeg'
+    SCALE = 15
+    orig_img = cv2.imread(path)
+    orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+
+    cv2.imwrite(temp_filename, orig_img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+
+    # read compressed image
+    compressed_img = cv2.imread(temp_filename)
+
+    # get absolute difference between img1 and img2 and multiply by scale
+    diff = SCALE * cv2.absdiff(orig_img, compressed_img)
+    return diff
+
+
+def convert_to_ela_image(path, quality):
+    temp_filename = 'temp_file_name.jpeg'
+    ela_filename = 'temp_ela.png'
+    image = Image.open(path).convert('RGB')
+    image.save(temp_filename, 'JPEG', quality = quality)
+    temp_image = Image.open(temp_filename)
+
+    ela_image = ImageChops.difference(image, temp_image)
+
+    extrema = ela_image.getextrema()
+    max_diff = max([ex[1] for ex in extrema])
+    if max_diff == 0:
+        max_diff = 1
+
+    scale = 255.0 / max_diff
+    ela_image = ImageEnhance.Brightness(ela_image).enhance(scale)
+
+    return ela_image
+
+
+def random_sample(path, extension=None):
+    if extension:
+        items = Path(path).glob(f'*.{extension}')
+    else:
+        items = Path(path).glob(f'*')
+
+    items = list(items)
+
+    p = random.choice(items)
+    return p.as_posix()
