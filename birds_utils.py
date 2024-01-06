@@ -17,14 +17,14 @@ import seaborn as sns
 #     labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
 
 #     filepaths = pd.Series(filepaths, name='Filepath').astype(str)
-#     labels = pd.Series(labels, name='Label')
+#     labels = pd.Series(labels, name='label')
 
 #     # Concatenate filepaths and labels
 #     self.image_df = pd.concat([filepaths, labels], axis=1)
 
 
 #   def get_label_idx(self,label):
-#     idx = list(self.image_df[self.image_df['Label'].isin([label])].index)
+#     idx = list(self.image_df[self.image_df['label'].isin([label])].index)
 #     if (len(idx)==0):
 #       print(f'{label} does not exist in the df')
 #     return idx
@@ -34,7 +34,7 @@ import seaborn as sns
 #     return len(idx)
 
 #   def get_labels(self):
-#     labels = self.image_df['Label'].unique()
+#     labels = self.image_df['label'].unique()
 #     return (labels)
 
 #   def plot_label_images(self,label=None,N=None,idx=None,fig_width=20,n_cols=8):
@@ -42,7 +42,7 @@ import seaborn as sns
 #     if (label != None):
 #       idx = self.get_label_idx(label)
 #       if (N == None):
-#         N = self.image_df[self.image_df['Label']==label].shape[0]
+#         N = self.image_df[self.image_df['label']==label].shape[0]
 #         idx = idx[0:N+1]
 
 #     elif (idx != None):
@@ -57,7 +57,7 @@ import seaborn as sns
 #     for label_ind, ax in enumerate(axes.flat):
 #       if (label_ind<N):
 #         ax.imshow(plt.imread(self.image_df.loc[idx[label_ind]].Filepath))
-#         ax.set_title(f'{self.image_df.loc[idx[label_ind]].Label} {idx[label_ind]}',fontsize=font_size)
+#         ax.set_title(f'{self.image_df.loc[idx[label_ind]].label} {idx[label_ind]}',fontsize=font_size)
 
 #     # plt.subplots_adjust(wspace=0)
 #     plt.tight_layout(pad=0.5)
@@ -75,7 +75,7 @@ import seaborn as sns
 
 #       df_filt = pd.DataFrame()
 #       if (labels != None):        
-#         df_filt = df[df['Label'].isin(labels)]
+#         df_filt = df[df['label'].isin(labels)]
 
 #       return df_filt
 
@@ -86,7 +86,7 @@ def load_data(project_dir):
   labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
 
   filepaths = pd.Series(filepaths, name='Filepath').astype(str)
-  labels = pd.Series(labels, name='Label')
+  labels = pd.Series(labels, name='label')
 
   # Concatenate filepaths and labels
   image_df = pd.concat([filepaths, labels], axis=1)
@@ -94,7 +94,7 @@ def load_data(project_dir):
 
 
 def get_label_idx(image_df,label):
-  idx = list(image_df[image_df['Label'].isin([label])].index)
+  idx = list(image_df[image_df['label'].isin([label])].index)
   if (len(idx)==0):
     print(f'{label} does not exist in the df')
   return idx
@@ -104,7 +104,7 @@ def get_label_data_set_size(iamge_df,label):
   return len(idx)
 
 def get_labels(image_df):
-  labels = list(image_df['Label'].unique())
+  labels = list(image_df['label'].unique())
   return (labels)
 
 
@@ -116,7 +116,7 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
   if (label != None):
     idx = get_label_idx(image_df,label)
     if (N == None):
-      N = image_df[image_df['Label']==label].shape[0]
+      N = image_df[image_df['label']==label].shape[0]
       idx = idx[0:N+1]
 
   elif (idx != None):
@@ -131,7 +131,7 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
   for label_ind, ax in enumerate(axes.flat):
     if (label_ind<N):
       ax.imshow(plt.imread(image_df.loc[idx[label_ind]].Filepath))
-      ax.set_title(f'{image_df.loc[idx[label_ind]].Label} {idx[label_ind]}',fontsize=font_size)
+      ax.set_title(f'{image_df.loc[idx[label_ind]].label} {idx[label_ind]}',fontsize=font_size)
 
   # plt.subplots_adjust(wspace=0)
   plt.tight_layout(pad=0.5)
@@ -140,28 +140,47 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
 
 
 #  filter the df according to various options:
-#  labels (list of strings) - a list of t he desired labels 
-def filter_df(df,labels=None):
+#  labels (list of strings) - The filter will output all the samples of the desired labels. 
+#  N_samples_per_label (integer) - The filter will output N_samples_per_label samples from each label
+#                                  (or all samples of the label if there are less than N_samples_per_label).
+#                                  N_samples_per_label = 'all' will return the input df unchanged
+     
+def filter_df(df,labels=None,N_samples_per_label=None):
   if isinstance(labels, str):
     labels = [labels]
 
   df_filt = pd.DataFrame()
-  if (labels != None):        
-    df_filt = df[df['Label'].isin(labels)]
+  if (labels != None): 
+    if (labels=='all'):
+      df_filt = df
+    else:  
+      df_filt = df[df['label'].isin(labels)]
+
+  elif (N_samples_per_label !=None):
+    if (N_samples_per_label=='all'):
+      df_filt = df
+    else:
+      labels = get_labels(df)
+      for label in labels:
+        df_tmp = filter_df(df,labels=list([label]))
+        df_tmp = df_tmp.iloc[0:min(N_samples_per_label,df_tmp.shape[0])]
+        df_filt = pd.concat([df_filt,df_tmp])
+    
+
 
   return df_filt
 
 # plot the a histogram of the 1'st N_labels top. if  N_labels is empty it is taken as teh number of all lables that exist
 def plot_labels_count (image_df,N_labels=None):
     if N_labels==None:
-        N_labels = len(image_df['Label'].unique())
+        N_labels = len(image_df['label'].unique())
 
-    label_counts = image_df['Label'].value_counts()[:N_labels]
+    label_counts = image_df['label'].value_counts()[:N_labels]
 
     plt.figure(figsize=(20, 6))
     sns.barplot(x=label_counts.index, y=label_counts.values, alpha=0.8, palette='dark:salmon_r')
     plt.title(f'Distribution of Top {N_labels} Labels in Image Dataset', fontsize=16)
-    plt.xlabel('Label', fontsize=14)
+    plt.xlabel('label', fontsize=14)
     plt.ylabel('Count', fontsize=14)
     plt.xticks(rotation=45)
     plt.show()
