@@ -1,9 +1,59 @@
-from pathlib import Path
-import os.path
+#!pip install tensorflow
+#!pip install opencv-python
+#!pip install cv2
+# !pip install BIRDS
+# pip install --upgrade --user pip
+# !pip install google.colab
+
+
+# Import Data Science Libraries
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import tensorflow as tf
+from pathlib import Path
+
+# import birds_utils.BIRDS
+from sklearn.model_selection import train_test_split
+
+# Tensorflow Libraries
+from tensorflow import keras
+from tensorflow.keras import layers,models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import Callback, EarlyStopping,ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras import Model
+from tensorflow.keras.layers.experimental import preprocessing
+
+# System libraries
+# from pathlib import Path
+import os.path
+import random
+
+# Visualization Libraries
+import matplotlib.cm as cm
+import cv2
 import seaborn as sns
+
+sns.set_style('darkgrid')
+
+# Metrics
+from sklearn.metrics import classification_report, confusion_matrix
+import itertools
+
+# !pip install itables
+from itables import init_notebook_mode
+init_notebook_mode(all_interactive=True)
+
+
+# from pathlib import Path
+# import os.path
+# import numpy as np
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 
 
 # class BIRDS :
@@ -80,18 +130,35 @@ import seaborn as sns
 #       return df_filt
 
 # load the images into a data frame
+# def load_data(project_dir):
+#   image_dir = Path(project_dir + '/data')
+#   filepaths = list(image_dir.glob(r'**/*.JPG')) + list(image_dir.glob(r'**/*.jpg')) + list(image_dir.glob(r'**/*.png')) + list(image_dir.glob(r'**/*.png'))
+#   labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
+
+#   filepaths = pd.Series(filepaths, name='Filepath').astype(str)
+#   labels = pd.Series(labels, name='label')
+
+#   # Concatenate filepaths and labels
+#   image_df = pd.concat([filepaths, labels], axis=1)
+#   return image_df
+
+
+# load the images into a data frame
 def load_data(project_dir):
-  image_dir = Path(project_dir + '/data')
-  filepaths = list(image_dir.glob(r'**/*.JPG')) + list(image_dir.glob(r'**/*.jpg')) + list(image_dir.glob(r'**/*.png')) + list(image_dir.glob(r'**/*.png'))
-  labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
+    image_dir = Path(os.path.join(project_dir, 'data'))
+    filepaths = list(image_dir.glob(r'**/*.JPG')) + list(image_dir.glob(r'**/*.jpg')) + list(image_dir.glob(r'**/*.png'))
 
-  filepaths = pd.Series(filepaths, name='Filepath').astype(str)
-  labels = pd.Series(labels, name='label')
+    # Extracting subsets and labels from file paths
+    subsets = [os.path.split(os.path.split(os.path.split(filepath)[0])[0])[1] for filepath in filepaths]
+    labels = [os.path.split(os.path.split(filepath)[0])[1] for filepath in filepaths]
 
-  # Concatenate filepaths and labels
-  image_df = pd.concat([filepaths, labels], axis=1)
-  return image_df
+    filepaths = pd.Series(filepaths, name='Filepath').astype(str)
+    labels = pd.Series(labels, name='label')
+    subsets = pd.Series(subsets, name='subset')
 
+    # Concatenate filepaths, subsets, and labels
+    image_df = pd.concat([filepaths, subsets, labels], axis=1)
+    return image_df
 
 def get_label_idx(image_df,label):
   idx = list(image_df[image_df['label'].isin([label])].index)

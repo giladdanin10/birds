@@ -1,3 +1,8 @@
 data/*
 data All/*
-
+training_logs/*
+__pycache__/*
+bird-classification-using-cnn-efficientnetb0 (20240106B) - Copy.ipynb
+bird-classification-using-cnn-efficientnetb0 (20240106B) - Copy (2).ipynb
+birds_classification_model_checkpoint*
+__pycache__/birds_utils*
