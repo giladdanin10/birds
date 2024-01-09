@@ -312,6 +312,7 @@ def convert_to_ela_image(path, quality):
     image.save(temp_filename, 'JPEG', quality = quality)
     temp_image = Image.open(temp_filename)
 
+
     ela_image = ImageChops.difference(image, temp_image)
 
     extrema = ela_image.getextrema()

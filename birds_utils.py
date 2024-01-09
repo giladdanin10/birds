@@ -108,9 +108,14 @@ def get_labels(image_df):
   return (labels)
 
 
-# plot the images according to user desires
-# parameters:
-# 
+# plot images from image_df,according to user desires
+# inputs:
+# image_df - image data frame with columns (FilePath amd label)
+# label (optional) - which label to plot (default None)
+# fig_width (optional) - fig width (default 20)
+# n_cols (optional) - number of image columns (default 8)
+# N (optional) - Number of augemnated images to plot (default 32)
+# idx (optional) - Index of images to plot (default None). This option is used when label=None 
 def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8):
   font_size=10*fig_width/10*4/n_cols
   if (label != None):
@@ -136,6 +141,42 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
   # plt.subplots_adjust(wspace=0)
   plt.tight_layout(pad=0.5)
   plt.show()
+
+
+# plot an agumented set of images 
+# inputs:
+# aug_img - an augmentation object (output of ImageDataGenerator.flow)
+# sample_image (optional) - original image () default is None
+# fig_width (optional) - fig width (default 20)
+# n_cols (optional) - number of image columns (default 8)
+# N (optional) - Number of augemnated images to plot (default 32)
+def plot_augumented_images(aug_img_obj,image_title=None,sample_image=None,fig_width=20,n_cols=8,N=32):
+  font_size=10*fig_width/10*4/n_cols
+  
+  if (sample_image is not None):
+    plt.figure(figsize=(3, 3))
+    plt.title("Original Image")
+    plt.imshow(sample_image)
+    plt.axis("off")
+    plt.show()
+    
+
+  n_rows = int(np.ceil(N/n_cols))
+  fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_width, fig_width*n_rows/n_cols),
+                      subplot_kw={'xticks': [], 'yticks': []})
+
+
+  for ind, ax in enumerate(axes.flat):
+    if (ind<N):
+      ax.imshow(aug_img_obj.next().astype("uint8")[0])
+
+  # plt.subplots_adjust(wspace=0)
+  plt.tight_layout(pad=0.5)
+
+  suptitle = fig.suptitle('Figure Title', fontsize=25)
+  suptitle.set_position((0.5, 1.3))
+
+  # plt.show()
 
 
 
@@ -185,6 +226,18 @@ def plot_labels_count (image_df,N_labels=None):
     plt.xticks(rotation=45)
     plt.show()
 
-
-
+# get an image from the image_df
+# inputs:
+#   image_df - image data frame
+#   idx - image index        
+#   df_index (optional) - whether to take idx according to data frame true index or just a row number(default True)          
+def get_image(image_df,idx,df_index=True):
+  if (df_index==True):
+      try:
+          return(plt.imread(image_df.loc[idx].Filepath))
+      except:
+          print(f'idx {idx} does not exist in data frame')
+          return None
+  else:
+      return(plt.imread(image_df.iloc[idx].Filepath))
 
