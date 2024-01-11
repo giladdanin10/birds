@@ -226,7 +226,7 @@ def plot_labels_count (image_df,N_labels=None):
     plt.xticks(rotation=45)
     plt.show()
 
-# get an image from the image_df
+# 'get_image' gets an image from the image_df
 # inputs:
 #   image_df - image data frame
 #   idx - image index        
@@ -241,3 +241,46 @@ def get_image(image_df,idx,df_index=True):
   else:
       return(plt.imread(image_df.iloc[idx].Filepath))
 
+# 'create_lables_dic' creates lables dictionary from the train_images_obj (used by apply_model) 
+# inputs: 
+#   train_images_obj - the output of an ImageDataGenerator.flow_from_dataframe loaded with the train_df
+# outpus:
+#    labels_dic - dictioary with the labels
+def create_lables_dic(train_images_obj):
+    # Map the label
+    labels = (train_images_obj.class_indices)
+    labels_dic = dict((v,k) for k,v in labels.items())
+    return labels_dic
+    
+
+# apply_model applies a model on the test_images_obj and returns the test_df with the additional 'predict_label' 
+# and 'status' indictiating if the prediction succeeded
+# inputs:
+#   model - a trained keras model
+#   labels_dic - labels dictionary
+#   obj_obj - the output of an ImageDataGenerator.flow_from_dataframe loaded with an image_df
+# outpus:
+#   obj_obj - updated image_df
+
+def apply_model(model,labels_dic,obj_dic):
+# apply the model    
+    pred = model.predict(obj_dic['images_obj'])
+    results = model.evaluate(obj_dic['images_obj'], verbose=0)
+
+    pred = np.argmax(pred,axis=1)
+    pred = [labels_dic[k] for k in pred]
+    
+    obj_dic['df']['predicted_label'] = pred
+    obj_dic['df']['status'] = obj_dic['df']['predicted_label']==obj_dic['df']['label']
+
+    print ('\n')    
+    print ('--------------------------------')
+    print (f"    results for {obj_dic['name']}")
+    print ('--------------------------------')
+    print(f"{obj_dic['name']} Loss: {results[0]:.5f}")
+    print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
+
+    # print(f"{obj_dic['name']}:")
+    print(classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label']))
+
+    return obj_dic
