@@ -4,80 +4,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix
 
 
-# class BIRDS :
-#   def __init__(self):
-#     self.image_df = None
-  
-#   # load the images into a data frame
-#   def load_data(self,project_dir):
-#     image_dir = Path(project_dir + '/data')
-#     filepaths = list(image_dir.glob(r'**/*.JPG')) + list(image_dir.glob(r'**/*.jpg')) + list(image_dir.glob(r'**/*.png')) + list(image_dir.glob(r'**/*.png'))
-#     labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
-
-#     filepaths = pd.Series(filepaths, name='Filepath').astype(str)
-#     labels = pd.Series(labels, name='label')
-
-#     # Concatenate filepaths and labels
-#     self.image_df = pd.concat([filepaths, labels], axis=1)
-
-
-#   def get_label_idx(self,label):
-#     idx = list(self.image_df[self.image_df['label'].isin([label])].index)
-#     if (len(idx)==0):
-#       print(f'{label} does not exist in the df')
-#     return idx
-
-#   def get_label_data_set_size(self,label):
-#     idx = self.get_label_idx(label)
-#     return len(idx)
-
-#   def get_labels(self):
-#     labels = self.image_df['label'].unique()
-#     return (labels)
-
-#   def plot_label_images(self,label=None,N=None,idx=None,fig_width=20,n_cols=8):
-#     font_size=10*fig_width/10*4/n_cols
-#     if (label != None):
-#       idx = self.get_label_idx(label)
-#       if (N == None):
-#         N = self.image_df[self.image_df['label']==label].shape[0]
-#         idx = idx[0:N+1]
-
-#     elif (idx != None):
-#         N = len(idx)
-
-#     N_image_in_fig = N
-
-#     n_rows = int(np.ceil(N_image_in_fig/n_cols))
-#     fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_width, fig_width*n_rows/n_cols),
-#                         subplot_kw={'xticks': [], 'yticks': []})
-
-#     for label_ind, ax in enumerate(axes.flat):
-#       if (label_ind<N):
-#         ax.imshow(plt.imread(self.image_df.loc[idx[label_ind]].Filepath))
-#         ax.set_title(f'{self.image_df.loc[idx[label_ind]].label} {idx[label_ind]}',fontsize=font_size)
-
-#     # plt.subplots_adjust(wspace=0)
-#     plt.tight_layout(pad=0.5)
-#     plt.show()
-
-
-# #  filter the df according to various options:
-# #  labels (list of strings) - a list of t he desired labels 
-#     def filter_df(self,df=None,labels=None):
-#       if (df==None):
-#         df = self.image_df
-
-#       if isinstance(labels, str):
-#         labels = [labels]
-
-#       df_filt = pd.DataFrame()
-#       if (labels != None):        
-#         df_filt = df[df['label'].isin(labels)]
-
-#       return df_filt
 
 # load the images into a data frame
 def load_data(project_dir):
@@ -142,6 +71,44 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
   plt.tight_layout(pad=0.5)
   plt.show()
 
+def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
+  if (df.shape[0]==0):
+    print('df is empty')
+    return
+
+  font_size=fig_width*3/n_cols
+  if (label != None):
+    idx = get_label_idx(df,label)
+    if (N is None):
+      N = image_df[image_df['label']==label].shape[0]
+      idx = idx[0:N+1]
+
+  elif (idx is not None):
+      N = len(idx)
+
+  N_image_in_fig = N
+
+  n_rows = int(np.ceil(N_image_in_fig/n_cols))
+  fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_width, fig_width*n_rows/n_cols+2),
+                      subplot_kw={'xticks': [], 'yticks': []})
+
+  for ind, ax in enumerate(axes.flat):
+    if (ind<N):
+      ax.imshow(plt.imread(df.loc[idx[ind]].Filepath))
+      if 'predicted_label' not in df.columns:
+        ax.set_title(f'{df.loc[idx[ind]].label} {idx[ind]}',fontsize=font_size)
+      else:
+        if df['status'].iloc[ind]:
+          color = "green"
+        else:
+          color = "red"
+
+        ax.set_title(f"index:{df.index[ind]}\nTrue: {df.label.iloc[ind]}\nPredicted: {df.predicted_label.iloc[ind]}", color=color,fontsize=font_size)
+
+  # plt.subplots_adjust(wspace=0)
+  plt.tight_layout(pad=0.5)
+  plt.show()
+
 
 # plot an agumented set of images 
 # inputs:
@@ -186,31 +153,32 @@ def plot_augumented_images(aug_img_obj,image_title=None,sample_image=None,fig_wi
 #                                  (or all samples of the label if there are less than N_samples_per_label).
 #                                  N_samples_per_label = 'all' will return the input df unchanged
      
-def filter_df(df,labels=None,N_samples_per_label=None):
+def filter_df(df,labels=None,N_samples_per_label=None,status=None):
   if isinstance(labels, str):
     labels = [labels]
 
-  df_filt = pd.DataFrame()
-  if (labels != None): 
+  df_filt = df
+  if (labels is not None): 
     if (labels=='all'):
       df_filt = df
     else:  
       df_filt = df[df['label'].isin(labels)]
 
-  elif (N_samples_per_label !=None):
+  elif (N_samples_per_label is not None):
     if (N_samples_per_label=='all'):
       df_filt = df
     else:
+      df_filt = pd.DataFrame()
       labels = get_labels(df)
       for label in labels:
         df_tmp = filter_df(df,labels=list([label]))
         df_tmp = df_tmp.iloc[0:min(N_samples_per_label,df_tmp.shape[0])]
         df_filt = pd.concat([df_filt,df_tmp])
-    
 
-
+  if (status is not None):
+    df_filt = df_filt[df_filt['status']==status]
+  
   return df_filt
-
 # plot the a histogram of the 1'st N_labels top. if  N_labels is empty it is taken as teh number of all lables that exist
 def plot_labels_count (image_df,N_labels=None):
     if N_labels==None:
