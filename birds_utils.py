@@ -185,7 +185,7 @@ def plot_labels_count (image_df,N_labels=None):
         N_labels = len(image_df['label'].unique())
 
     label_counts = image_df['label'].value_counts()[:N_labels]
-
+   
     plt.figure(figsize=(20, 6))
     sns.barplot(x=label_counts.index, y=label_counts.values, alpha=0.8, palette='dark:salmon_r')
     plt.title(f'Distribution of Top {N_labels} Labels in Image Dataset', fontsize=16)
@@ -230,7 +230,17 @@ def create_lables_dic(train_images_obj):
 # outpus:
 #   obj_obj - updated image_df
 
-def apply_model(model,labels_dic,obj_dic):
+
+def get_classification_report(y_test, y_pred):
+    from sklearn import metrics
+    report = metrics.classification_report(y_test, y_pred, output_dict=True)
+    df_classification_report = pd.DataFrame(report).transpose()
+    df_classification_report = df_classification_report.sort_values(by=['f1-score'], ascending=False)
+    return df_classification_report
+
+
+
+def apply_model(model,labels_dic,obj_dic,plot_report=True):
 # apply the model    
     pred = model.predict(obj_dic['images_obj'])
     results = model.evaluate(obj_dic['images_obj'], verbose=0)
@@ -249,6 +259,16 @@ def apply_model(model,labels_dic,obj_dic):
     print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
 
     # print(f"{obj_dic['name']}:")
-    print(classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label']))
+    obj_dic['classification_report'] = birds.get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
+
+    # plot if desired
+    if (plot_report):
+        plot_columns = list(obj_dic['classification_report'].columns)
+        plot_columns.remove('support')
+        name = obj_dic['name']
+        obj_dic['classification_report'][plot_columns].plot(rot=45,title=f'{name}:classification report')
+
+
+    print(obj_dic['classification_report'] )
 
     return obj_dic
