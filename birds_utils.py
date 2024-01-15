@@ -272,3 +272,14 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     print(obj_dic['classification_report'] )
 
     return obj_dic
+
+
+def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
+    for key in list(obj_dic_stack.keys()):
+
+# remove images_obj as it cannot be saved      
+        if ('images_obj' in obj_dic_stack[key]):
+            obj_dic_stack[key].pop('images_obj')
+
+    with open(obj_dic_stack_path, 'wb') as file:
+        dill.dump(obj_dic_stack, file)
