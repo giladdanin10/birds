@@ -5,6 +5,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
+import dill
+import pickle
+import copy
+
 
 
 
@@ -153,9 +157,13 @@ def plot_augumented_images(aug_img_obj,image_title=None,sample_image=None,fig_wi
 #                                  (or all samples of the label if there are less than N_samples_per_label).
 #                                  N_samples_per_label = 'all' will return the input df unchanged
      
-def filter_df(df,labels=None,N_samples_per_label=None,status=None):
+def filter_df(df,labels=None,N_samples_per_label=None,status=None,predicted_labels=None):
   if isinstance(labels, str):
     labels = [labels]
+
+  if isinstance(predicted_labels, str):
+    predicted_labels = [predicted_labels]
+
 
   df_filt = df
   if (labels is not None): 
@@ -163,13 +171,20 @@ def filter_df(df,labels=None,N_samples_per_label=None,status=None):
       df_filt = df
     else:  
       df_filt = df[df['label'].isin(labels)]
+  elif (predicted_labels is not None):
+    if (predicted_labels=='all'):
+      df_filt = df
+    else:        
+      df_filt = df[df['predicted_label'].isin(predicted_labels)]
+
+
 
   elif (N_samples_per_label is not None):
     if (N_samples_per_label=='all'):
       df_filt = df
     else:
       df_filt = pd.DataFrame()
-      labels = get_labels(df)
+      labels = birds.get_labels(df)
       for label in labels:
         df_tmp = filter_df(df,labels=list([label]))
         df_tmp = df_tmp.iloc[0:min(N_samples_per_label,df_tmp.shape[0])]
@@ -179,6 +194,9 @@ def filter_df(df,labels=None,N_samples_per_label=None,status=None):
     df_filt = df_filt[df_filt['status']==status]
   
   return df_filt
+
+
+
 # plot the a histogram of the 1'st N_labels top. if  N_labels is empty it is taken as teh number of all lables that exist
 def plot_labels_count (image_df,N_labels=None):
     if N_labels==None:
@@ -283,3 +301,60 @@ def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
 
     with open(obj_dic_stack_path, 'wb') as file:
         dill.dump(obj_dic_stack, file)
+
+
+def get_obj_dic_stack(model,train_obj_dic,val_obj_dic,test_obj_dic,obj_dic_stack_path):
+    if os.path.exists(obj_dic_stack_path):
+        print(f'loding obj_dic_stack from {obj_dic_stack_path}')
+        with open(obj_dic_stack_path, 'rb') as file:
+            obj_dic_stack = pickle.load(file)
+    else:
+        labels_dic = create_lables_dic(train_obj_dic['images_obj'])
+        test_obj_dic = apply_model(model,labels_dic,test_obj_dic)
+        train_obj_dic = apply_model(model,labels_dic,train_obj_dic)
+        val_obj_dic = apply_model(model,labels_dic,val_obj_dic)
+
+        # def analyze_classifaction_reports(train_obj_dic,val_obj_dic,test_obj_dic):
+        obj_dic_stack = {'train':train_obj_dic,'val':val_obj_dic,'test':test_obj_dic}
+
+        save_obj_dic_stack (obj_dic_stack,obj_dic_stack_path)
+    return obj_dic_stack
+
+
+def plot_obj_dic_stack_score(obj_dic_stack,score='f1'):
+    df = pd.DataFrame()
+    for key in obj_dic_stack.keys():
+        df_pre = (obj_dic_stack[key]['classification_report'])
+        df_pre = df_pre.add_suffix(f'_{key}')
+        # if (df.shape[1]==0):
+        #     df = df_pre
+        # else:
+        df = pd.concat([df, df_pre], axis=1)
+    df.filter(like=score, axis=1).plot(rot=45)
+
+def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_cols=5,N=5,false_ind=0,false_label = None):
+    df = obj_dic_stack['train']['classification_report'].sort_values('f1-score')
+
+    if (ana_label is None):
+        ana_label = df.index[ana_label_ind]
+
+    # get the data_frame of the false detection 
+    false_df = filter_df(obj_dic_stack['train']['df'],labels=ana_label,status=False)
+
+    # get the data_frame of the true detection 
+    true_df = filter_df(obj_dic_stack['train']['df'],labels=ana_label,status=True)
+
+    # plot the distribution of the false dedctection
+    false_label_count_df = false_df.groupby('predicted_label').count().sort_values('status',ascending=False)
+    ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
+    ax.set_xticks(range(len(false_label_count_df)))
+    ax.set_xticklabels(false_label_count_df.index)
+
+    if (false_label is None):
+        false_label = false_label_count_df.index[false_ind]
+
+# filter the false_df according to the false_label    
+    false_df = filter_df(false_df,predicted_labels=false_label)
+
+    plot_images(false_df,idx=false_df.index[0:N],n_cols=n_cols)
+    plot_label_images(obj_dic_stack['train']['df'],N=N,label=false_label,n_cols=n_cols)
