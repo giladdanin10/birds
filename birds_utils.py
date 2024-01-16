@@ -107,7 +107,7 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
         else:
           color = "red"
 
-        ax.set_title(f"index:{df.index[ind]}\nTrue: {df.label.iloc[ind]}\nPredicted: {df.predicted_label.iloc[ind]}", color=color,fontsize=font_size)
+        ax.set_title(f"index:{df.index[idx[ind]]}\nTrue: {df.label.iloc[idx[ind]]}\nPredicted: {df.predicted_label.iloc[idx[ind]]}", color=color,fontsize=font_size)
 
   # plt.subplots_adjust(wspace=0)
   plt.tight_layout(pad=0.5)
