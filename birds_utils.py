@@ -75,12 +75,17 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
   plt.tight_layout(pad=0.5)
   plt.show()
 
-def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
+def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=None):
   if (df.shape[0]==0):
     print('df is empty')
     return
 
-  font_size=fig_width*3/n_cols
+  if (n_cols==1):
+      fig_width=10
+
+  if (font_size is None):
+      font_size=fig_width*3/n_cols
+
   if (label != None):
     idx = get_label_idx(df,label)
     if (N is None):
@@ -95,6 +100,9 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
   n_rows = int(np.ceil(N_image_in_fig/n_cols))
   fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_width, fig_width*n_rows/n_cols+2),
                       subplot_kw={'xticks': [], 'yticks': []})
+
+  if (N==1):
+     axes = np.array([axes])
 
   for ind, ax in enumerate(axes.flat):
     if (ind<N):
@@ -184,7 +192,7 @@ def filter_df(df,labels=None,N_samples_per_label=None,status=None,predicted_labe
       df_filt = df
     else:
       df_filt = pd.DataFrame()
-      labels = birds.get_labels(df)
+      labels = get_labels(df)
       for label in labels:
         df_tmp = filter_df(df,labels=list([label]))
         df_tmp = df_tmp.iloc[0:min(N_samples_per_label,df_tmp.shape[0])]
@@ -198,20 +206,49 @@ def filter_df(df,labels=None,N_samples_per_label=None,status=None,predicted_labe
 
 
 # plot the a histogram of the 1'st N_labels top. if  N_labels is empty it is taken as teh number of all lables that exist
-def plot_labels_count (image_df,N_labels=None):
-    if N_labels==None:
+def plot_labels_count(image_df, N_labels=None):
+    if N_labels is None:
         N_labels = len(image_df['label'].unique())
 
     label_counts = image_df['label'].value_counts()[:N_labels]
-   
-    plt.figure(figsize=(20, 6))
+
+    plt.figure(figsize=(15, 10))
+    fontsize = 15
+
     sns.barplot(x=label_counts.index, y=label_counts.values, alpha=0.8, palette='dark:salmon_r')
-    plt.title(f'Distribution of Top {N_labels} Labels in Image Dataset', fontsize=16)
-    plt.xlabel('label', fontsize=14)
-    plt.ylabel('Count', fontsize=14)
-    plt.xticks(rotation=45)
+    plt.title(f'Distribution of Top {N_labels} Labels in Image Dataset', fontsize=30)
+    plt.xlabel('label', fontsize=fontsize)
+    plt.ylabel('Count', fontsize=fontsize)
+    
+    # Limit X-ticks to 10
+    plt.xticks(rotation=45, fontsize=10)
+    plt.xticks(range(0, len(label_counts.index), max(len(label_counts.index) // 10, 1)), label_counts.index[::max(len(label_counts.index) // 10, 1)])
+    
+    # Add mean +/- std dashed lines
+    mean_line = plt.axhline(label_counts.mean(), color='black', linestyle='dashed', linewidth=2, label='Mean')
+    upper_std_line = plt.axhline(label_counts.mean() + label_counts.std(), color='red', linestyle='dashed', linewidth=2, label='Mean + Std')
+    lower_std_line = plt.axhline(label_counts.mean() - label_counts.std(), color='blue', linestyle='dashed', linewidth=2, label='Mean - Std')
+    
+    # Add min and max lines
+    min_line = plt.axhline(label_counts.min(), color='green', linestyle='dashed', linewidth=2, label='Min')
+    max_line = plt.axhline(label_counts.max(), color='purple', linestyle='dashed', linewidth=2, label='Max')
+    
+    # Add y ticks for the dashed lines
+    y_ticks = [label_counts.mean(), label_counts.mean() + label_counts.std(), label_counts.mean() - label_counts.std(), label_counts.min(), label_counts.max()]
+    plt.yticks(y_ticks, fontsize=10)
+    
+    # Add text above the red dashed line with normalized standard deviation
+    std_norm = label_counts.std() / label_counts.mean() * 100
+    text = f'Normalized STD = {std_norm:.2f}%'
+    plt.text(len(label_counts) // 2, label_counts.mean() + label_counts.std() + 2, text, ha='center', va='bottom', fontsize=fontsize, color='red')
+    
+    # Add legend
+    plt.legend(handles=[mean_line, upper_std_line, lower_std_line, min_line, max_line], loc='upper right', fontsize=fontsize)
+    
     plt.show()
 
+# Example usage:
+# Assuming 'im
 # 'get_image' gets an image from the image_df
 # inputs:
 #   image_df - image data frame
@@ -239,6 +276,14 @@ def create_lables_dic(train_images_obj):
     return labels_dic
     
 
+def get_classification_report(y_test, y_pred):
+    from sklearn import metrics
+    report = metrics.classification_report(y_test, y_pred, output_dict=True)
+    df_classification_report = pd.DataFrame(report).transpose()
+    df_classification_report = df_classification_report.sort_values(by=['f1-score'], ascending=False)
+    return df_classification_report
+    
+
 # apply_model applies a model on the test_images_obj and returns the test_df with the additional 'predict_label' 
 # and 'status' indictiating if the prediction succeeded
 # inputs:
@@ -247,17 +292,6 @@ def create_lables_dic(train_images_obj):
 #   obj_obj - the output of an ImageDataGenerator.flow_from_dataframe loaded with an image_df
 # outpus:
 #   obj_obj - updated image_df
-
-
-def get_classification_report(y_test, y_pred):
-    from sklearn import metrics
-    report = metrics.classification_report(y_test, y_pred, output_dict=True)
-    df_classification_report = pd.DataFrame(report).transpose()
-    df_classification_report = df_classification_report.sort_values(by=['f1-score'], ascending=False)
-    return df_classification_report
-
-
-
 def apply_model(model,labels_dic,obj_dic,plot_report=True):
 # apply the model    
     pred = model.predict(obj_dic['images_obj'])
@@ -277,7 +311,7 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
 
     # print(f"{obj_dic['name']}:")
-    obj_dic['classification_report'] = birds.get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
+    obj_dic['classification_report'] = get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
 
     # plot if desired
     if (plot_report):
@@ -346,9 +380,9 @@ def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_col
 
     # plot the distribution of the false dedctection
     false_label_count_df = false_df.groupby('predicted_label').count().sort_values('status',ascending=False)
-    # ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
-    # ax.set_xticks(range(len(false_label_count_df)))
-    # ax.set_xticklabels(false_label_count_df.index)
+    ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
+    ax.set_xticks(range(len(false_label_count_df)))
+    ax.set_xticklabels(false_label_count_df.index)
 
     if (false_label is None):
         false_label = false_label_count_df.index[false_ind]
