@@ -82,6 +82,7 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=No
     return
 
   if (n_cols==1):
+      print('kuku')
       fig_width=10
 
   if (font_size is None):
@@ -401,17 +402,35 @@ def get_obj_dic_stack(model,train_obj_dic,val_obj_dic,test_obj_dic,obj_dic_stack
     return obj_dic_stack
     
 
-def plot_obj_dic_stack_score(obj_dic_stack,score='f1'):
+def plot_obj_dic_stack_score(obj_dic_stack, score='f1', base_df_type='test'):
     df = pd.DataFrame()
-    for key in obj_dic_stack.keys():
-        df_pre = (obj_dic_stack[key]['classification_report'])
-        df_pre = df_pre.add_suffix(f'_{key}')
-        # if (df.shape[1]==0):
-        #     df = df_pre
-        # else:
-        df = pd.concat([df, df_pre], axis=1)
-    df.filter(like=score, axis=1).plot(rot=45)
 
+    for key in obj_dic_stack.keys():
+        df_pre = obj_dic_stack[key]['classification_report']
+        df_pre = df_pre.add_suffix(f'_{key}')
+        df = pd.concat([df, df_pre], axis=1)
+
+    # Sort by the specified score for the base_df_type
+    df = df.sort_values(f'{score}_{base_df_type}', ascending=True)
+
+    # Plot lines for each key
+    ax = df.filter(like=score, axis=1).plot(rot=45, linestyle='-')
+
+    # Plot average lines with corresponding colors
+    for line, key in zip(ax.get_lines(), obj_dic_stack.keys()):
+        avg_score = df[f'{score}_{key}'].mean()
+        line_color = line.get_color()
+        ax.axhline(avg_score, linestyle='--', color=line_color)
+
+        # Add y ticks on the right y-axis
+        ax2 = ax.twinx()
+        ax2.set_yticks([avg_score])
+        ax2.set_yticklabels([f'{avg_score:.2f}'], color=line_color)
+        ax2.set_ylim(ax.get_ylim())  # Match the y-limits with the left y-axis
+
+    plt.show()
+
+    
 def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_cols=5,N=5,false_ind=0,false_label = None):
     df = obj_dic_stack['train']['classification_report'].sort_values('f1-score')
 
@@ -424,7 +443,7 @@ def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_col
     # get the data_frame of the true detection 
     true_df = filter_df(obj_dic_stack['train']['df'],labels=ana_label,status=True)
 
-    # plot the distribution of the false dedctection
+    # plot the distribution of the false detection
     false_label_count_df = false_df.groupby('predicted_label').count().sort_values('status',ascending=False)
     ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
     ax.set_xticks(range(len(false_label_count_df)))
