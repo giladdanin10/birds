@@ -102,17 +102,17 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
       if 'predicted_label' not in df.columns:
         ax.set_title(f'{df.loc[idx[ind]].label} {idx[ind]}',fontsize=font_size)
       else:
-        if df['status'].iloc[ind]:
+        if df['status'].loc[idx[ind]]:
           color = "green"
         else:
           color = "red"
 
-        ax.set_title(f"index:{df.index[idx[ind]]}\nTrue: {df.label.iloc[idx[ind]]}\nPredicted: {df.predicted_label.iloc[idx[ind]]}", color=color,fontsize=font_size)
+        ax.set_title(f"index:{idx[ind]}\nTrue: {df.label.loc[idx[ind]]}\nPredicted: {df.predicted_label.loc[idx[ind]]}", color=color,fontsize=font_size)
+        # ax.set_title(f"index:{df.index[ind]}\nTrue: {df.label.iloc[ind]}\nPredicted: {df.predicted_label.iloc[ind]}", color=color,fontsize=font_size)
 
   # plt.subplots_adjust(wspace=0)
   plt.tight_layout(pad=0.5)
   plt.show()
-
 
 # plot an agumented set of images 
 # inputs:
@@ -346,16 +346,14 @@ def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_col
 
     # plot the distribution of the false dedctection
     false_label_count_df = false_df.groupby('predicted_label').count().sort_values('status',ascending=False)
-    ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
-    ax.set_xticks(range(len(false_label_count_df)))
-    ax.set_xticklabels(false_label_count_df.index)
+    # ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
+    # ax.set_xticks(range(len(false_label_count_df)))
+    # ax.set_xticklabels(false_label_count_df.index)
 
     if (false_label is None):
         false_label = false_label_count_df.index[false_ind]
 
 # filter the false_df according to the false_label    
     false_df = filter_df(false_df,predicted_labels=false_label)
-
-    plot_images(false_df,idx=false_df.index[0:N],n_cols=n_cols)
+    plot_images(false_df,idx=list(false_df.index[0:N]),n_cols=n_cols)
     plot_label_images(obj_dic_stack['train']['df'],N=N,label=false_label,n_cols=n_cols)
-#a
