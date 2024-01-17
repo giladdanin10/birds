@@ -8,6 +8,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 import dill
 import pickle
 import copy
+from sklearn.metrics import accuracy_score
 
 
 
@@ -282,7 +283,40 @@ def get_classification_report(y_test, y_pred):
     df_classification_report = pd.DataFrame(report).transpose()
     df_classification_report = df_classification_report.sort_values(by=['f1-score'], ascending=False)
     return df_classification_report
-    
+
+
+
+def calculate_accuracy_per_label(df, label_col='label', predicted_col='predicted_label'):
+    """
+    Calculate accuracy for each unique label in a DataFrame.
+
+    Parameters:
+    - df: DataFrame
+        The DataFrame containing 'label' and 'predicted_label' columns.
+    - label_col: str, default='label'
+        The column name for the true labels.
+    - predicted_col: str, default='predicted_label'
+        The column name for the predicted labels.
+
+    Returns:
+    - accuracy_per_label: dict
+        A dictionary containing accuracy for each unique label.
+    """
+    accuracy_per_label = {}
+
+    # Get unique labels
+    labels = df[label_col].unique()
+
+    for label in labels:
+        mask = df[label_col] == label
+        accuracy = accuracy_score(df.loc[mask, label_col], df.loc[mask, predicted_col])
+        accuracy_per_label[label] = accuracy
+
+    accuracy_df = pd.DataFrame(list(accuracy_per_label.items()), columns=['label', 'accuracy'])
+    accuracy_df.set_index('label', inplace=True)
+
+    return accuracy_df
+
 
 # apply_model applies a model on the test_images_obj and returns the test_df with the additional 'predict_label' 
 # and 'status' indictiating if the prediction succeeded
@@ -313,6 +347,12 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     # print(f"{obj_dic['name']}:")
     obj_dic['classification_report'] = get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
 
+    # add accuracy
+    accuracy_df = calculate_accuracy_per_label(obj_dic['df'], label_col='label', predicted_col='predicted_label')
+
+    obj_dic['classification_report'] = obj_dic['classification_report'].merge(accuracy_df, left_index=True, right_index=True)
+
+
     # plot if desired
     if (plot_report):
         plot_columns = list(obj_dic['classification_report'].columns)
@@ -324,7 +364,6 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     print(obj_dic['classification_report'] )
 
     return obj_dic
-
 
 def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
     for key in list(obj_dic_stack.keys()):
@@ -348,12 +387,19 @@ def get_obj_dic_stack(model,train_obj_dic,val_obj_dic,test_obj_dic,obj_dic_stack
         train_obj_dic = apply_model(model,labels_dic,train_obj_dic)
         val_obj_dic = apply_model(model,labels_dic,val_obj_dic)
 
+
         # def analyze_classifaction_reports(train_obj_dic,val_obj_dic,test_obj_dic):
         obj_dic_stack = {'train':train_obj_dic,'val':val_obj_dic,'test':test_obj_dic}
 
         save_obj_dic_stack (obj_dic_stack,obj_dic_stack_path)
-    return obj_dic_stack
+# add accuracy
+    for key in obj_dic_stack.keys():
+        if 'accuracy' not in obj_dic_stack[key]['df']:
+            accuracy_df = calculate_accuracy_per_label(obj_dic_stack[key]['df'], label_col='label', predicted_col='predicted_label')
+            obj_dic_stack[key]['classification_report'] = obj_dic_stack[key]['classification_report'].merge(accuracy_df, left_index=True, right_index=True)
 
+    return obj_dic_stack
+    
 
 def plot_obj_dic_stack_score(obj_dic_stack,score='f1'):
     df = pd.DataFrame()
