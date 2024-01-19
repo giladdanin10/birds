@@ -82,7 +82,6 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=No
     return
 
   if (n_cols==1):
-      print('kuku')
       fig_width=10
 
   if (font_size is None):
@@ -430,7 +429,7 @@ def plot_obj_dic_stack_score(obj_dic_stack, score='f1', base_df_type='test'):
 
     plt.show()
 
-    
+
 def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_cols=5,N=5,false_ind=0,false_label = None):
     df = obj_dic_stack['train']['classification_report'].sort_values('f1-score')
 
@@ -456,3 +455,14 @@ def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_col
     false_df = filter_df(false_df,predicted_labels=false_label)
     plot_images(false_df,idx=list(false_df.index[0:N]),n_cols=n_cols)
     plot_label_images(obj_dic_stack['train']['df'],N=N,label=false_label,n_cols=n_cols)
+
+
+
+def get_other_images(df):
+    df = df[df['Filepath'].str.contains('other', case=False, na=False)]
+    return df
+
+def remove_other_images(df):
+    other_indexes = df[df['Filepath'].str.contains('other', case=False, na=False)].index
+    df = df.drop(other_indexes)
+    return df
