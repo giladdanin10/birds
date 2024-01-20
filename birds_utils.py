@@ -466,3 +466,24 @@ def remove_other_images(df):
     other_indexes = df[df['Filepath'].str.contains('other', case=False, na=False)].index
     df = df.drop(other_indexes)
     return df
+
+def save_var(var,file_name):
+    status = True
+    try:
+        with open(file_name, 'wb') as file:
+            pickle.dump(labels_dic, file)
+    except:
+        status = False
+        print(f'could not open {file_name} for writing')
+    return status
+
+def load_var(file_anme):
+    var = None
+    try:
+        with open(file_anme, 'rb') as file:
+            var = pickle.load(file)
+    except:
+        print(f'could not open {file_name} for reading')
+    return var
+
+
