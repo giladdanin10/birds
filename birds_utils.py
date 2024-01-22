@@ -471,7 +471,7 @@ def save_var(var,file_name):
     status = True
     try:
         with open(file_name, 'wb') as file:
-            pickle.dump(labels_dic, file)
+            pickle.dump(var, file)
     except:
         status = False
         print(f'could not open {file_name} for writing')
