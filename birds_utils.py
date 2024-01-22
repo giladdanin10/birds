@@ -8,6 +8,62 @@ from sklearn.metrics import classification_report, confusion_matrix
 import dill
 import pickle
 import copy
+import itertools
+from keras.layers import Input
+
+# Import Data Science Libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from pathlib import Path
+
+# import birds_utils.BIRDS
+from sklearn.model_selection import train_test_split
+
+# Tensorflow Libraries
+from tensorflow import keras
+from tensorflow.keras import layers,models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import Callback, EarlyStopping,ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras import Model
+from tensorflow.keras.layers.experimental import preprocessing
+from tensorflow.keras.utils import plot_model
+from sklearn.utils.class_weight import compute_class_weight
+
+# System libraries
+from pathlib import Path
+import os.path
+import random
+import pickle
+# Visualization Libraries
+import matplotlib.cm as cm
+import cv2
+import seaborn as sns
+import birds_utils as birds
+sns.set_style('darkgrid')
+
+# Metrics
+from sklearn.metrics import classification_report, confusion_matrix
+import itertools
+import dill
+import copy
+
+from tensorflow.keras import layers
+from tensorflow.keras.layers import Input, Dense, Dropout
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from PIL import ImageFont
+import visualkeras
+
+
+
+
 from sklearn.metrics import accuracy_score
 
 
@@ -487,3 +543,197 @@ def load_var(file_anme):
     return var
 
 
+def create_run_path_name(base_path,params):
+    
+    if (base_path[-1] == '/'):
+        run_path_name = base_path[:-1]
+    else:
+        run_path_name = base_path
+
+    for key in params.keys():
+        run_path_name = f'{run_path_name}_{params[key]}'
+    
+    run_path_name = run_path_name + '/'
+    return run_path_name
+
+
+def get_params_permutations(params):
+    # Get all keys and their associated value lists
+    keys, value_lists = zip(*params.items())
+
+    # Get all permutations of values associated with each key
+    permutations_list = list(itertools.product(*value_lists))
+
+    # Create a list of dictionaries, each representing a combination of parameter values
+    param_permutations = [dict(zip(keys, values)) for values in permutations_list]
+
+    return param_permutations
+
+
+
+def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False):
+    print(params.keys())
+    if ('dense1_size' not in params.keys()):
+        params['dense1_size'] = 128
+
+    if ('dense2_size' not in params.keys()):
+        params['dense2_size'] = 256
+
+    if ('N_labels' not in params.keys()):
+        params['N_labels'] = 2
+    
+    if (visualize_model):
+        input_shape=(224, 224, 3)
+        inputs = Input(shape=input_shape)
+        font_size = 10
+        scale_xy=0.8
+    else:
+        inputs = pretrained_model.input
+        inputs.__dict__['_type_spec']
+        inputs = pretrained_model.input
+        font_size = 100
+        scale_xy=3
+
+    if (AUGMENTATON):
+        x = augment(inputs)
+        x = pretrained_model(x)
+        x = Dense([params['dense1_size']], activation='relu')(x)
+        x = Dropout(0.45)(x)
+        x = Dense(params['dense2_size'], activation='relu')(x)
+        x = Dropout(0.45)(x)
+
+    else:
+        if (visualize_model):
+            # x = augment(inputs)
+            # x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
+            x = inputs
+            x = pretrained_model(x)
+            x = Dense(params['dense1_size'], activation='relu')(x)
+            x = Dropout(0.45)(x)
+            x = Dense(params['dense2_size'], activation='relu')(x)
+            x = Dropout(0.45)(x)
+        else:
+            inputs = pretrained_model.input
+            # x = augment(inputs)
+            x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
+            x = Dropout(0.45)(x)
+            x = Dense(params['dense2_size'], activation='relu')(x)
+            x = Dropout(0.45)(x)
+        
+
+
+    outputs = Dense(params['N_labels'], activation='softmax')(x)
+
+    model = Model(inputs=inputs, outputs=outputs)
+    model.compile(
+        optimizer=Adam(0.0001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+
+
+    # Adjust the font size
+    font = ImageFont.truetype("arial.ttf", font_size)
+
+    
+    if (visualize_model):
+        # Save the model image to a file with specific colors for each layer
+        visualkeras.layered_view(model, legend=True, font=font, to_file='model.png', scale_xy=scale_xy, color_map=create_color_map())
+        plot_model(model, show_shapes=True, show_layer_names=True)
+    return model 
+
+
+
+
+def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=None):
+    if (run_path is None):
+      run_path = create_run_path_name (models_path,params)
+      
+    print(f'run_path = {run_path}')
+    if ('N_epochs_patitence' not in params.keys()):
+        params['N_epochs_patitence'] = 128
+
+    if ('N_epochs') not in params.keys():
+        params['N_epochs'] = 100
+
+    if ('N_labels') not in params.keys():
+        params['N_labels'] = 2
+    
+
+    RUN_NAME = os.path.basename(os.path.normpath(run_path))
+
+    # Create checkpoint callback
+    checkpoint_path = f'{run_path}/{RUN_NAME}_check_point.h5'
+    print(checkpoint_path)
+    checkpoint_callback = ModelCheckpoint(checkpoint_path,
+                                        save_weights_only=False,
+                                        monitor="val_accuracy",
+                                        save_best_only=True)
+
+    # Setup EarlyStopping callback to stop training if model's val_loss doesn't improve for 3 epochs
+    early_stopping = EarlyStopping(monitor = "val_loss", # watch the val loss metric
+                                patience = params['N_epochs_patitence'],
+                                restore_best_weights = True) # if val loss decreases for 3 epochs in a row, stop training
+
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=1e-6)
+
+
+    model_file_path = f'{run_path}/{RUN_NAME}_model.keras'
+    history_file_path = f'{run_path}/{RUN_NAME}_history.pkl'
+
+    if os.path.exists(model_file_path):
+    # load model    
+        print(f'loading {RUN_NAME} and related history')
+        model = keras.models.load_model(model_file_path)
+        # Later, you can load the history object
+    # load history   
+        with open(history_file_path, 'rb') as file:
+            history = pickle.load(file)
+            history = pd.DataFrame({'history':history})
+
+    else:
+        if os.path.exists(checkpoint_path):
+            print (f'loading check point from {checkpoint_path}')
+            model = keras.models.load_model(checkpoint_path)
+        
+        # Calculate class weights
+        labels = train_obj_dic['df']['label'].tolist() # Make sure this is your training data labels
+        class_weights = compute_class_weight('balanced', classes=np.unique(labels), y=labels)
+        class_weights_dict = dict(enumerate(class_weights))
+
+
+        history = model.fit(
+            train_obj_dic['images_obj'],
+            steps_per_epoch=len(train_obj_dic['images_obj']),
+            validation_data=val_obj_dic['images_obj'],
+            validation_steps=len(val_obj_dic['images_obj']),
+            epochs=params['N_epochs'],
+            class_weight=class_weights_dict,
+            callbacks=[
+                early_stopping,
+                # birds.create_tensorboard_callback("training_logs",
+                #                             "bird_classification"),
+                checkpoint_callback,
+                reduce_lr
+            ]
+        )
+
+        model.save(model_file_path)
+        with open(history_file_path, 'wb') as file:
+            pickle.dump(history.history, file)
+
+    return model,history
+
+
+
+def create_color_map():
+    color_map = defaultdict(dict)
+    # customize the colours
+    color_map[layers.Conv2D]['fill'] = '#00f5d4'
+    color_map[layers.MaxPooling2D]['fill'] = '#8338ec'
+    color_map[layers.Dropout]['fill'] = '#03045e'
+    color_map[layers.Dense]['fill'] = '#fb5607'
+    color_map[layers.Flatten]['fill'] = '#ffbe0b'
+    color_map[layers.Dropout]['fill'] = '#03045e'
+    return color_map
