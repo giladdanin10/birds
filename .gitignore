@@ -2,4 +2,7 @@ data/*
 data All/*
 # models/*
 __pycache__/*
+*pkl*
+*jpg*
+
 
