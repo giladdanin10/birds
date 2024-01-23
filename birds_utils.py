@@ -17,6 +17,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from pathlib import Path
+import time
 
 # import birds_utils.BIRDS
 from sklearn.model_selection import train_test_split
@@ -702,6 +703,7 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
         class_weights = compute_class_weight('balanced', classes=np.unique(labels), y=labels)
         class_weights_dict = dict(enumerate(class_weights))
 
+        start_time = time.time()
 
         history = model.fit(
             train_obj_dic['images_obj'],
@@ -719,12 +721,17 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
             ]
         )
 
+        end_time = time.time()
+
+# Calculate the elapsed time
+        elapsed_time = end_time - start_time        
+        birds.save_var(elapsed_time,f'{run_path}/elapsed_time.keras')
+
         model.save(model_file_path)
         with open(history_file_path, 'wb') as file:
             pickle.dump(history.history, file)
 
     return model,history
-
 
 
 def create_color_map():
@@ -856,3 +863,14 @@ def plot_history_single_run(history):
     plt.title('Training and validation loss')
     plt.legend()
     plt.show()
+
+
+from PIL import Image
+def resize_images(df):
+    for i in range(1):
+        img = Image.open(df['Filepath'].iloc[i])
+
+        # Resize the image
+        resized_img = img.resize(TARGET_SIZE)
+        plt.imshow(resized_img)
+        resized_img.save(df['Filepath'].iloc[i])    
