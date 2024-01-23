@@ -26,7 +26,7 @@ from tensorflow import keras
 from tensorflow.keras import layers,models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.callbacks import Callback, EarlyStopping,ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.callbacks import Callback, EarlyStopping,ModelCheckpoint, ReduceLROnPlateau,History
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras import Model
@@ -737,3 +737,122 @@ def create_color_map():
     color_map[layers.Flatten]['fill'] = '#ffbe0b'
     color_map[layers.Dropout]['fill'] = '#03045e'
     return color_map
+
+
+def get_filtered_subfolders(base_dir, filter_str):
+    # Ensure the base directory exists
+    if not os.path.exists(base_dir):
+        print(f"The base directory '{base_dir}' does not exist.")
+        return []
+
+    # Get the list of subfolders
+    subfolders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
+
+    # Filter subfolders based on the provided filter string
+    filtered_subfolders = [folder+'/' for folder in subfolders if filter_str in folder]
+
+    return filtered_subfolders
+
+import os
+
+def get_filtered_files(folder_path, filtering_str,full_path = 'True'):
+    filtered_files = []
+
+    # Check if the folder exists
+    if not os.path.exists(folder_path):
+        print(f"The folder '{folder_path}' does not exist.")
+        return filtered_files
+
+    # Iterate through the files in the folder
+    for file_name in os.listdir(folder_path):
+        # Check if the filtering string is present in the file name
+        # print(file_name)
+        if filtering_str in file_name:
+            if (not full_path):
+                # Add the file to the list if it matches the criteria
+                filtered_files.append(file_name)
+            else:
+                filtered_files.append(folder_path+file_name)
+
+    return filtered_files
+
+
+def plot_training_history(files):
+    if not isinstance(files, list):
+        files = [files]
+
+    # Create subplots for each metric
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
+    axes = axes.flatten()
+
+    legend_list = []
+    for file_index, file in enumerate(files):
+        # Load training history from the file using birds.load_var
+        history = birds.load_var(file)
+
+        # Create a DataFrame from the history
+        history_df = pd.DataFrame(history)
+
+        # Extract training and validation metrics
+        accuracy = history_df['accuracy']
+        val_accuracy = history_df['val_accuracy']
+        loss = history_df['loss']
+        val_loss = history_df['val_loss']
+
+        # create the legends
+        substrings = file.split('_')
+        mat_size = substrings[-6:-4]
+        str = mat_size[0]+'_'+mat_size[1]
+        legend_list.append(str)
+
+        if (str=='128_256'):
+            LineWidth = 3
+        else:
+            LineWidth = 1
+            
+        # Plotting on each subplot
+        axes[0].plot(accuracy, label=f'File {file_index + 1}',linewidth=LineWidth)
+        axes[1].plot(val_accuracy, label=f'File {file_index + 1}',linewidth=LineWidth)
+        axes[2].plot(loss, label=f'File {file_index + 1}',linewidth=LineWidth)
+        axes[3].plot(val_loss, label=f'File {file_index + 1}',linewidth=LineWidth)
+
+
+
+    # Set titles and labels
+    axes[0].set_title('Training Accuracy')
+    axes[1].set_title('Validation Accuracy')
+    axes[2].set_title('Training Loss')
+    axes[3].set_title('Validation Loss')
+
+
+    for ax in axes:
+        ax.set_xlabel('Epochs')
+        ax.legend(legend_list)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_history_single_run(history):
+    accuracy = history.history['accuracy']
+    val_accuracy = history.history['val_accuracy']
+
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    epochs = range(len(accuracy))
+    plt.plot(epochs, accuracy, 'b', label='Training accuracy')
+    plt.plot(epochs, val_accuracy, 'r', label='Validation accuracy')
+    plt.xlabel('epocs')
+    plt.ylabel('validate')
+
+    plt.title('Training and validation accuracy')
+    plt.legend()
+    plt.figure()
+    plt.plot(epochs, loss, 'b', label='Training loss')
+    plt.plot(epochs, val_loss, 'r', label='Validation loss')
+    plt.xlabel('epocs')
+    plt.ylabel('loss')
+    plt.title('Training and validation loss')
+    plt.legend()
+    plt.show()
