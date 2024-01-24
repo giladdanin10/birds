@@ -10,7 +10,7 @@ import pickle
 import copy
 import itertools
 from keras.layers import Input
-
+import json
 # Import Data Science Libraries
 import numpy as np
 import pandas as pd
@@ -384,15 +384,29 @@ def calculate_accuracy_per_label(df, label_col='label', predicted_col='predicted
 # outpus:
 #   obj_obj - updated image_df
 def apply_model(model,labels_dic,obj_dic,plot_report=True):
-# apply the model    
-    pred = model.predict(obj_dic['images_obj'])
-    results = model.evaluate(obj_dic['images_obj'], verbose=0)
 
-    pred = np.argmax(pred,axis=1)
-    pred = [labels_dic[k] for k in pred]
-    
+    name = obj_dic['name']
+    print('--------------------------------')
+    print(f'  apply model on {name}')
+    print('--------------------------------')
+
+# apply the model  
+    pred_proba = model.predict(obj_dic['images_obj'])
+    proba = np.max(pred_proba,axis=1)
+    max_proba_ind = np.argmax(pred_proba,axis=1)
+    pred = [labels_dic[k] for k in max_proba_ind]
+
     obj_dic['df']['predicted_label'] = pred
     obj_dic['df']['status'] = obj_dic['df']['predicted_label']==obj_dic['df']['label']
+    obj_dic['df']['proba'] = proba
+
+
+    results = model.evaluate(obj_dic['images_obj'], verbose=0)
+
+    obj_dic['pred_proba'] = pred_proba
+    obj_dic['accuracy'] = results[1]
+    obj_dic['loss'] = results[0]
+
 
     print ('\n')    
     print ('--------------------------------')
@@ -401,7 +415,6 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     print(f"{obj_dic['name']} Loss: {results[0]:.5f}")
     print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
 
-    # print(f"{obj_dic['name']}:")
     obj_dic['classification_report'] = get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
 
     # add accuracy
@@ -422,6 +435,7 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
 
     return obj_dic
 
+
 def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
     for key in list(obj_dic_stack.keys()):
 
@@ -433,30 +447,52 @@ def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
         dill.dump(obj_dic_stack, file)
 
 
-def get_obj_dic_stack(model,train_obj_dic,val_obj_dic,test_obj_dic,obj_dic_stack_path):
-    if os.path.exists(obj_dic_stack_path):
-        print(f'loding obj_dic_stack from {obj_dic_stack_path}')
-        with open(obj_dic_stack_path, 'rb') as file:
+def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,params,run_path=None,plot_report=True):
+    if (run_path is None):
+      run_path = create_run_path_name (models_path,params)
+
+
+    obj_dic_stack_file_name = run_path+'/obj_dic.pkl'
+
+    if os.path.exists(obj_dic_stack_file_name):
+        print(f'loding obj_dic_stack from {obj_dic_stack_file_name}')
+        with open(obj_dic_stack_file_name, 'rb') as file:
             obj_dic_stack = pickle.load(file)
+
+# recreate the image generators (lost during the saving process)
+        train_generator = ImageDataGenerator(
+            preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+        )
+
+        val_generator = ImageDataGenerator(
+            preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+        )
+
+        test_generator = ImageDataGenerator(
+            preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+        )
+
+
+        obj_dic_stack['train']['images_obj'] = train_generator.flow_from_dataframe(**obj_dic_stack['train']['images_obj_params'])
+        obj_dic_stack['val']['images_obj'] = val_generator.flow_from_dataframe(**obj_dic_stack['val']['images_obj_params'])
+        obj_dic_stack['test']['images_obj'] = test_generator.flow_from_dataframe(**obj_dic_stack['test']['images_obj_params'])
+
+
+
     else:
         labels_dic = create_lables_dic(train_obj_dic['images_obj'])
-        test_obj_dic = apply_model(model,labels_dic,test_obj_dic)
-        train_obj_dic = apply_model(model,labels_dic,train_obj_dic)
-        val_obj_dic = apply_model(model,labels_dic,val_obj_dic)
+        test_obj_dic = apply_model(model,labels_dic,test_obj_dic,plot_report=plot_report)
+        train_obj_dic = apply_model(model,labels_dic,train_obj_dic,plot_report=plot_report)
+        val_obj_dic = apply_model(model,labels_dic,val_obj_dic,plot_report=plot_report)
 
 
         # def analyze_classifaction_reports(train_obj_dic,val_obj_dic,test_obj_dic):
         obj_dic_stack = {'train':train_obj_dic,'val':val_obj_dic,'test':test_obj_dic}
 
-        save_obj_dic_stack (obj_dic_stack,obj_dic_stack_path)
-# add accuracy
-    for key in obj_dic_stack.keys():
-        if 'accuracy' not in obj_dic_stack[key]['df']:
-            accuracy_df = calculate_accuracy_per_label(obj_dic_stack[key]['df'], label_col='label', predicted_col='predicted_label')
-            obj_dic_stack[key]['classification_report'] = obj_dic_stack[key]['classification_report'].merge(accuracy_df, left_index=True, right_index=True)
+        print(obj_dic_stack['test']['classification_report'])
+        save_obj_dic_stack (obj_dic_stack,obj_dic_stack_file_name)
 
-    return obj_dic_stack
-    
+    return obj_dic_stack    
 
 def plot_obj_dic_stack_score(obj_dic_stack, score='f1', base_df_type='test'):
     df = pd.DataFrame()
@@ -573,7 +609,10 @@ def get_params_permutations(params):
 
 
 def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False):
-    print(params.keys())
+    print('-----------------')
+    print('  create model')
+    print('-----------------')
+          
     if ('dense1_size' not in params.keys()):
         params['dense1_size'] = 128
 
@@ -648,10 +687,14 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
 
 
 def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=None):
+    print('--------------------------------')
+    print(f'  train model')
+    print('--------------------------------')
+
+
     if (run_path is None):
       run_path = create_run_path_name (models_path,params)
       
-    print(f'run_path = {run_path}')
     if ('N_epochs_patitence' not in params.keys()):
         params['N_epochs_patitence'] = 128
 
@@ -665,7 +708,7 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
     RUN_NAME = os.path.basename(os.path.normpath(run_path))
 
     # Create checkpoint callback
-    checkpoint_path = f'{run_path}/{RUN_NAME}_check_point.h5'
+    checkpoint_path = f'{run_path}/check_point.h5'
     print(checkpoint_path)
     checkpoint_callback = ModelCheckpoint(checkpoint_path,
                                         save_weights_only=False,
@@ -680,8 +723,8 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=1e-6)
 
 
-    model_file_path = f'{run_path}/{RUN_NAME}_model.keras'
-    history_file_path = f'{run_path}/{RUN_NAME}_history.pkl'
+    model_file_path = f'{run_path}/model.keras'
+    history_file_path = f'{run_path}/history.pkl'
 
     if os.path.exists(model_file_path):
     # load model    
