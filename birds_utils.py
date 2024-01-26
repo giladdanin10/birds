@@ -828,7 +828,7 @@ def get_filtered_files(folder_path, filtering_str,full_path = 'True'):
     return filtered_files
 
 
-def plot_training_history(files):
+def plot_training_history(files,plot_str=''):
     if not isinstance(files, list):
         files = [files]
 
@@ -852,7 +852,7 @@ def plot_training_history(files):
 
         # create the legends
         substrings = file.split('_')
-        mat_size = substrings[-6:-4]
+        mat_size = substrings[-5:-3]
         str = mat_size[0]+'_'+mat_size[1]
         legend_list.append(str)
 
@@ -870,10 +870,10 @@ def plot_training_history(files):
 
 
     # Set titles and labels
-    axes[0].set_title('Training Accuracy')
-    axes[1].set_title('Validation Accuracy')
-    axes[2].set_title('Training Loss')
-    axes[3].set_title('Validation Loss')
+    axes[0].set_title('Training Accuracy'+plot_str)
+    axes[1].set_title('Validation Accuracy'+plot_str)
+    axes[2].set_title('Training Loss'+plot_str)
+    axes[3].set_title('Validation Loss'+plot_str)
 
 
     for ax in axes:
@@ -884,7 +884,7 @@ def plot_training_history(files):
     plt.show()
 
 
-def plot_history_single_run(history):
+def plot_history_single_run(history,plot_str=f''):
     accuracy = history.history['accuracy']
     val_accuracy = history.history['val_accuracy']
 
@@ -897,14 +897,14 @@ def plot_history_single_run(history):
     plt.xlabel('epocs')
     plt.ylabel('validate')
 
-    plt.title('Training and validation accuracy')
+    plt.title('Training and validation accuracy'+plot_str)
     plt.legend()
     plt.figure()
     plt.plot(epochs, loss, 'b', label='Training loss')
     plt.plot(epochs, val_loss, 'r', label='Validation loss')
     plt.xlabel('epocs')
     plt.ylabel('loss')
-    plt.title('Training and validation loss')
+    plt.title('Training and validation loss'+plot_str)
     plt.legend()
     plt.show()
 
