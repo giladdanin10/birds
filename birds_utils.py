@@ -138,6 +138,12 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=No
     print('df is empty')
     return
 
+# handle an empty df
+  if (df.shape[0]==0):
+     print('data frame is empty')
+     return
+  
+
   if (font_size is None):
       font_size=fig_width*3/n_cols
 
@@ -918,3 +924,18 @@ def resize_images(df):
         resized_img = img.resize(TARGET_SIZE)
         plt.imshow(resized_img)
         resized_img.save(df['Filepath'].iloc[i])    
+
+
+def get_model_layers_summary(model):
+    layer_counts = {}
+
+    for layer in model.layers:
+        # Get the type of the layer
+        layer_type = type(layer).__name__
+        
+        # Update the count in the dictionary
+        layer_counts[layer_type] = layer_counts.get(layer_type, 0) + 1
+
+    df = pd.DataFrame.from_dict(layer_counts, orient='index')
+    df = df.rename(columns={df.columns[0]: 'N_layers'})
+    return df
