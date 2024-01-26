@@ -138,9 +138,6 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=No
     print('df is empty')
     return
 
-  if (n_cols==1):
-      fig_width=10
-
   if (font_size is None):
       font_size=fig_width*3/n_cols
 
@@ -383,7 +380,7 @@ def calculate_accuracy_per_label(df, label_col='label', predicted_col='predicted
 #   obj_obj - the output of an ImageDataGenerator.flow_from_dataframe loaded with an image_df
 # outpus:
 #   obj_obj - updated image_df
-def apply_model(model,labels_dic,obj_dic,plot_report=True):
+def apply_model(model,labels_dic,obj_dic,plot_report=True,evaluate=True):
 
     name = obj_dic['name']
     print('--------------------------------')
@@ -400,22 +397,24 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     obj_dic['df']['status'] = obj_dic['df']['predicted_label']==obj_dic['df']['label']
     obj_dic['df']['proba'] = proba
 
+    if (evaluate):
+        results = model.evaluate(obj_dic['images_obj'], verbose=0)
+        obj_dic['accuracy'] = results[1]
+        obj_dic['loss'] = results[0]
 
-    results = model.evaluate(obj_dic['images_obj'], verbose=0)
+        print ('\n')    
+        print ('--------------------------------')
+        print (f"    results for {obj_dic['name']}")
+        print ('--------------------------------')
+        print(f"{obj_dic['name']} Loss: {results[0]:.5f}")
+        print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
+
 
     obj_dic['pred_proba'] = pred_proba
-    obj_dic['accuracy'] = results[1]
-    obj_dic['loss'] = results[0]
 
-
-    print ('\n')    
-    print ('--------------------------------')
-    print (f"    results for {obj_dic['name']}")
-    print ('--------------------------------')
-    print(f"{obj_dic['name']} Loss: {results[0]:.5f}")
-    print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
 
     obj_dic['classification_report'] = get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
+
 
     # add accuracy
     accuracy_df = calculate_accuracy_per_label(obj_dic['df'], label_col='label', predicted_col='predicted_label')
@@ -436,6 +435,7 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True):
     return obj_dic
 
 
+
 def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
     for key in list(obj_dic_stack.keys()):
 
@@ -449,10 +449,11 @@ def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
 
 def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,params,run_path=None,plot_report=True):
     if (run_path is None):
-      run_path = create_run_path_name (models_path,params)
+      run_path = create_run_path_name (models_path,params)    
 
 
-    obj_dic_stack_file_name = run_path+'/obj_dic.pkl'
+    obj_dic_stack_file_name = run_path+'/obj_dic_stack.pkl'
+
 
     if os.path.exists(obj_dic_stack_file_name):
         print(f'loding obj_dic_stack from {obj_dic_stack_file_name}')
@@ -570,10 +571,10 @@ def save_var(var,file_name):
         print(f'could not open {file_name} for writing')
     return status
 
-def load_var(file_anme):
+def load_var(file_name):
     var = None
     try:
-        with open(file_anme, 'rb') as file:
+        with open(file_name, 'rb') as file:
             var = pickle.load(file)
     except:
         print(f'could not open {file_name} for reading')
@@ -723,7 +724,7 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=1e-6)
 
 
-    model_file_path = f'{run_path}/model.keras'
+    model_file_path = f'{run_path}/check_point.h5'
     history_file_path = f'{run_path}/history.pkl'
 
     if os.path.exists(model_file_path):
