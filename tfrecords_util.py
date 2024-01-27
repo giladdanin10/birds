@@ -46,4 +46,3 @@ with tf.io.TFRecordWriter(tfrecord_file) as writer:
 # Returning the path to the created TFRecord file
 tfrecord_file_path = tfrecord_file
 tfrecord_file_path
-
