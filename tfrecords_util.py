@@ -21,7 +21,7 @@ def _string_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(value)]))
 
 
-def create_tfrecord_example(Filepath, label):
+def create_tfrecord(Filepath, label):
     image = cv2.imread(Filepath)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     feature = {
@@ -40,7 +40,7 @@ with tf.io.TFRecordWriter(tfrecord_file) as writer:
     for idx, row in image_df.iterrows():
         Filepath = row['Filepath']  # This should be updated with the correct column name
         label = row['label']  # This should be updated with the correct column name
-        tf_example = create_tfrecord_example(Filepath, label)
+        tf_example = create_tfrecord(Filepath, label)
         writer.write(tf_example.SerializeToString())
         
 # Returning the path to the created TFRecord file
