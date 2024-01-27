@@ -13,3 +13,4 @@ bird-classification-using-cnn-efficientnetb0 - Copy.ipynb
 birds_classification_model_checkpoint.data-00000-of-00001
 birds_classification_model_checkpoint.index
 to ignore
+__pycache__/birds_utils.cpython-39.pyc
