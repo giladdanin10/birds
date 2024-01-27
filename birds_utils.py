@@ -453,7 +453,7 @@ def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
         dill.dump(obj_dic_stack, file)
 
 
-def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,params,run_path=None,plot_report=True):
+def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,params,run_path=None,plot_report=True,evaluate=True):
     if (run_path is None):
       run_path = create_run_path_name (models_path,params)    
 
@@ -488,9 +488,9 @@ def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,p
 
     else:
         labels_dic = create_lables_dic(train_obj_dic['images_obj'])
-        test_obj_dic = apply_model(model,labels_dic,test_obj_dic,plot_report=plot_report)
-        train_obj_dic = apply_model(model,labels_dic,train_obj_dic,plot_report=plot_report)
-        val_obj_dic = apply_model(model,labels_dic,val_obj_dic,plot_report=plot_report)
+        test_obj_dic = apply_model(model,labels_dic,test_obj_dic,plot_report=plot_report,evaluate=evaluate)
+        train_obj_dic = apply_model(model,labels_dic,train_obj_dic,plot_report=plot_report,evaluate=evaluate)
+        val_obj_dic = apply_model(model,labels_dic,val_obj_dic,plot_report=plot_report,evaluate=evaluate)
 
 
         # def analyze_classifaction_reports(train_obj_dic,val_obj_dic,test_obj_dic):
@@ -890,7 +890,7 @@ def plot_training_history(files,plot_str=''):
     plt.show()
 
 
-def plot_history_single_run(history,plot_str=f''):
+def plot_history_single_run(history,plot_str=f'',xlim=60):
     accuracy = history.history['accuracy']
     val_accuracy = history.history['val_accuracy']
 
@@ -902,6 +902,7 @@ def plot_history_single_run(history,plot_str=f''):
     plt.plot(epochs, val_accuracy, 'r', label='Validation accuracy')
     plt.xlabel('epocs')
     plt.ylabel('validate')
+    plt.xlim(0,xlim)
 
     plt.title('Training and validation accuracy'+plot_str)
     plt.legend()
@@ -912,6 +913,7 @@ def plot_history_single_run(history,plot_str=f''):
     plt.ylabel('loss')
     plt.title('Training and validation loss'+plot_str)
     plt.legend()
+    plt.xlim(0,xlim)
     plt.show()
 
 
