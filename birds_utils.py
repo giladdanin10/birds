@@ -685,8 +685,6 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
     return model 
 
 
-
-
 def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=None):
     print('--------------------------------')
     print(f'  train model')
@@ -726,6 +724,17 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
 
     model_file_path = f'{run_path}/check_point.h5'
     history_file_path = f'{run_path}/history.pkl'
+        # Function to calculate dataset size
+    def get_dataset_size(dataset):
+        return sum(1 for _ in dataset)
+
+    # Calculate the actual number of samples in the datasets within the function
+    total_train_samples = get_dataset_size(train_obj_dic['images_obj'])
+    total_val_samples = get_dataset_size(val_obj_dic['images_obj'])
+
+    # Assuming BATCH_SIZE is defined
+    steps_per_epoch = total_train_samples // BATCH_SIZE
+    validation_steps = total_val_samples // BATCH_SIZE
 
     if os.path.exists(model_file_path):
     # load model    
@@ -751,7 +760,7 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
 
         history = model.fit(
             train_obj_dic['images_obj'],
-            steps_per_epoch=len(train_obj_dic['images_obj']),
+            steps_per_epoch=steps_per_epoch,
             validation_data=val_obj_dic['images_obj'],
             validation_steps=len(val_obj_dic['images_obj']),
             epochs=params['N_epochs'],
