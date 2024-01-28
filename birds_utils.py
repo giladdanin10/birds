@@ -988,12 +988,15 @@ def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=
         colors = generate_colors(len(classes))
         colors_dict = dict(zip(classes, colors))
 
-    if (ind is not None):
-        for i in ind:
-            if (split_type is not None):
-                axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
-            else:
-                axes.plot(df['pred_proba_sorted'].iloc[i])
+    if (ind is None):
+        print ('kuku')
+        ind = range(df.shape[0])
+        
+    for i in ind:
+        if (split_type is not None):
+            axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
+        else:
+            axes.plot(df['pred_proba_sorted'].iloc[i])
 
 
     axes.set_ylim([-40, 0])
