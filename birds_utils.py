@@ -156,7 +156,13 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=No
   elif (idx is not None):
       N = len(idx)
 
+
   N_image_in_fig = N
+
+  if N==0:
+    print('No iamges to plot')
+    return
+
 
   n_rows = int(np.ceil(N_image_in_fig/n_cols))
   fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_width, fig_width*n_rows/n_cols+2),
@@ -436,6 +442,11 @@ def apply_model(model,labels_dic,obj_dic,plot_report=True,evaluate=True):
         obj_dic['classification_report'][plot_columns].plot(rot=45,title=f'{name}:classification report')
 
 
+    obj_dic['df']['pred_proba'] = [obj_dic['pred_proba'][i, :] for i in range(obj_dic['pred_proba'].shape[0])]
+
+    obj_dic['df']['pred_proba_sorted'] = obj_dic['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+    
+
     print(obj_dic['classification_report'] )
 
     return obj_dic
@@ -498,6 +509,16 @@ def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,p
 
         print(obj_dic_stack['test']['classification_report'])
         save_obj_dic_stack (obj_dic_stack,obj_dic_stack_file_name)
+
+# add the pred_proba vaector as a column in the df for all 3 dfs
+    obj_dic_stack['test']['df']['pred_proba'] = [obj_dic_stack['test']['pred_proba'][i, :] for i in range(obj_dic_stack['test']['pred_proba'].shape[0])]
+    obj_dic_stack['val']['df']['pred_proba'] = [obj_dic_stack['val']['pred_proba'][i, :] for i in range(obj_dic_stack['val']['pred_proba'].shape[0])]
+    obj_dic_stack['train']['df']['pred_proba'] = [obj_dic_stack['train']['pred_proba'][i, :] for i in range(obj_dic_stack['train']['pred_proba'].shape[0])]
+
+    obj_dic_stack['test']['df']['pred_proba_sorted'] = obj_dic_stack['test']['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+    obj_dic_stack['val']['df']['pred_proba_sorted'] = obj_dic_stack['val']['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+    obj_dic_stack['train']['df']['pred_proba_sorted'] = obj_dic_stack['train']['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+
 
     return obj_dic_stack    
 
@@ -615,7 +636,7 @@ def get_params_permutations(params):
 
 
 
-def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False):
+def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False,augment=None):
     print('-----------------')
     print('  create model')
     print('-----------------')
@@ -642,9 +663,11 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
         scale_xy=3
 
     if (AUGMENTATON):
+        input_shape=(224, 224, 3)
+        inputs = Input(shape=input_shape)
         x = augment(inputs)
         x = pretrained_model(x)
-        x = Dense([params['dense1_size']], activation='relu')(x)
+        x = Dense(params['dense1_size'], activation='relu')(x)
         x = Dropout(0.45)(x)
         x = Dense(params['dense2_size'], activation='relu')(x)
         x = Dropout(0.45)(x)
@@ -681,14 +704,15 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
 
 
     # Adjust the font size
-    font = ImageFont.truetype("arial.ttf", font_size)
+    # font = ImageFont.truetype("arial.ttf", font_size)
 
     
-    if (visualize_model):
-        # Save the model image to a file with specific colors for each layer
-        visualkeras.layered_view(model, legend=True, font=font, to_file='model.png', scale_xy=scale_xy, color_map=create_color_map())
-        plot_model(model, show_shapes=True, show_layer_names=True)
+    # if (visualize_model):
+    #     # Save the model image to a file with specific colors for each layer
+    #     visualkeras.layered_view(model, legend=True, font=font, to_file='model.png', scale_xy=scale_xy, color_map=create_color_map())
+    #     plot_model(model, show_shapes=True, show_layer_names=True)
     return model 
+
 
 
 
@@ -941,3 +965,39 @@ def get_model_layers_summary(model):
     df = pd.DataFrame.from_dict(layer_counts, orient='index')
     df = df.rename(columns={df.columns[0]: 'N_layers'})
     return df
+
+
+def prepare_for_log(vector_with_zeros):
+    vector_with_zeros_nonzero = np.where(vector_with_zeros == 0, 1e-40, vector_with_zeros)
+    return vector_with_zeros_nonzero
+
+
+def generate_colors(N, colormap='tab10'):
+    color_map = plt.get_cmap(colormap)
+    return [color_map(i) for i in np.linspace(0, 1, N)]
+
+
+def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=None):
+    if axes is None:
+        plt.figure(figsize=(4, 4))
+        axes = plt.gca()
+
+    if (split_type is not None):
+        classes = df[split_type].unique()
+        colors = generate_colors(len(classes))
+        colors_dict = dict(zip(classes, colors))
+
+    if (ind is not None):
+        for i in ind:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].iloc[i])
+
+
+    axes.set_ylim([-40, 0])
+    if title is not None:
+        axes.set_title(title)
+
+    axes.set_xlabel('label')
+    axes.set_ylabel('log10(p[label])')
