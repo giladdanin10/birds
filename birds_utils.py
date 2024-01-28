@@ -700,6 +700,7 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
         loss='categorical_crossentropy',
         metrics=['accuracy']
     )
+        
 
 
 
