@@ -715,7 +715,7 @@ def get_params_permutations(params):
 #     return model 
 
 
-def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False,augment=None):
+def create_model(pretrained_model,params={},AUGMENTATON = False,augment=None):
     print('-----------------')
     print('  create model')
     print('-----------------')
@@ -742,7 +742,6 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
     if (params['dense2_size'] != 0):
         x = Dense(params['dense2_size'], activation='relu')(x)
         x = Dropout(0.45)(x)
-
 
     outputs = Dense(params['N_labels'], activation='softmax')(x)
 
@@ -1102,3 +1101,7 @@ def get_run_mean_epoch_time (run_dir,print_message=True):
         print (f'N_epochs:{N_epochs}')
         print (f'mean_epoch_time:{mean_epoch_time:.2f}[sec]')
     return mean_epoch_time
+
+
+def filter_strings_by_substring(string_list, short_string):
+    return [s for s in string_list if short_string in s]
