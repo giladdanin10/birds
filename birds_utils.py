@@ -1068,7 +1068,7 @@ def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=
 def get_run_elasped_time (run_dir,print=True):
     if not os.path.exists(run_dir):
         print (f'{run_dir} does not exist')
-        return
+        return   
     
     elapsed_time = load_var (run_dir+'/'+'elapsed_time.keras')
 
