@@ -35,7 +35,7 @@ csv_file_path = './image_df_full.csv'
 image_df = pd.read_csv(csv_file_path)
 
 # Create a TFRecord file
-tfrecord_file = './data/images.tfrecord'
+tfrecord_file = './data/dataset.tfrecord'
 with tf.io.TFRecordWriter(tfrecord_file) as writer:
     for idx, row in image_df.iterrows():
         Filepath = row['Filepath']  # This should be updated with the correct column name
