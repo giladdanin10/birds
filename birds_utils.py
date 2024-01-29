@@ -636,6 +636,85 @@ def get_params_permutations(params):
 
 
 
+# def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False,augment=None):
+#     print('-----------------')
+#     print('  create model')
+#     print('-----------------')
+          
+#     if ('dense1_size' not in params.keys()):
+#         params['dense1_size'] = 128
+
+#     if ('dense2_size' not in params.keys()):
+#         params['dense2_size'] = 256
+
+#     if ('N_labels' not in params.keys()):
+#         params['N_labels'] = 2
+    
+#     if (visualize_model):
+#         input_shape=(224, 224, 3)
+#         inputs = Input(shape=input_shape)
+#         font_size = 10
+#         scale_xy=0.8
+#     else:
+#         inputs = pretrained_model.input
+#         inputs.__dict__['_type_spec']
+#         inputs = pretrained_model.input
+#         font_size = 100
+#         scale_xy=3
+
+#     if (AUGMENTATON):
+#         input_shape=(224, 224, 3)
+#         inputs = Input(shape=input_shape)
+#         x = augment(inputs)
+#         x = pretrained_model(x)
+#         x = Dense(params['dense1_size'], activation='relu')(x)
+#         x = Dropout(0.45)(x)
+#         x = Dense(params['dense2_size'], activation='relu')(x)
+#         x = Dropout(0.45)(x)
+
+#     else:
+#         if (visualize_model):
+#             # x = augment(inputs)
+#             # x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
+#             x = inputs
+#             x = pretrained_model(x)
+#             x = Dense(params['dense1_size'], activation='relu')(x)
+#             x = Dropout(0.45)(x)
+#             x = Dense(params['dense2_size'], activation='relu')(x)
+#             x = Dropout(0.45)(x)
+#         else:
+#             inputs = pretrained_model.input
+#             # x = augment(inputs)
+#             x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
+#             x = Dropout(0.45)(x)
+#             x = Dense(params['dense2_size'], activation='relu')(x)
+#             x = Dropout(0.45)(x)
+        
+
+
+#     outputs = Dense(params['N_labels'], activation='softmax')(x)
+
+#     model = Model(inputs=inputs, outputs=outputs)
+#     model.compile(
+#         optimizer=Adam(0.0001),
+#         loss='categorical_crossentropy',
+#         metrics=['accuracy']
+#     )
+        
+
+
+
+#     # Adjust the font size
+#     # font = ImageFont.truetype("arial.ttf", font_size)
+
+    
+#     # if (visualize_model):
+#     #     # Save the model image to a file with specific colors for each layer
+#     #     visualkeras.layered_view(model, legend=True, font=font, to_file='model.png', scale_xy=scale_xy, color_map=create_color_map())
+#     #     plot_model(model, show_shapes=True, show_layer_names=True)
+#     return model 
+
+
 def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False,augment=None):
     print('-----------------')
     print('  create model')
@@ -650,46 +729,19 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
     if ('N_labels' not in params.keys()):
         params['N_labels'] = 2
     
-    if (visualize_model):
-        input_shape=(224, 224, 3)
-        inputs = Input(shape=input_shape)
-        font_size = 10
-        scale_xy=0.8
-    else:
-        inputs = pretrained_model.input
-        inputs.__dict__['_type_spec']
-        inputs = pretrained_model.input
-        font_size = 100
-        scale_xy=3
+    input_shape=(224, 224, 3)
+    inputs = Input(shape=input_shape)
 
+    x = inputs
     if (AUGMENTATON):
-        input_shape=(224, 224, 3)
-        inputs = Input(shape=input_shape)
-        x = augment(inputs)
-        x = pretrained_model(x)
+        x = augment(x)
+    x = pretrained_model(x)
+    if (params['dense1_size'] != 0):
         x = Dense(params['dense1_size'], activation='relu')(x)
         x = Dropout(0.45)(x)
+    if (params['dense2_size'] != 0):
         x = Dense(params['dense2_size'], activation='relu')(x)
         x = Dropout(0.45)(x)
-
-    else:
-        if (visualize_model):
-            # x = augment(inputs)
-            # x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
-            x = inputs
-            x = pretrained_model(x)
-            x = Dense(params['dense1_size'], activation='relu')(x)
-            x = Dropout(0.45)(x)
-            x = Dense(params['dense2_size'], activation='relu')(x)
-            x = Dropout(0.45)(x)
-        else:
-            inputs = pretrained_model.input
-            # x = augment(inputs)
-            x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
-            x = Dropout(0.45)(x)
-            x = Dense(params['dense2_size'], activation='relu')(x)
-            x = Dropout(0.45)(x)
-        
 
 
     outputs = Dense(params['N_labels'], activation='softmax')(x)
@@ -701,17 +753,6 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
         metrics=['accuracy']
     )
         
-
-
-
-    # Adjust the font size
-    # font = ImageFont.truetype("arial.ttf", font_size)
-
-    
-    # if (visualize_model):
-    #     # Save the model image to a file with specific colors for each layer
-    #     visualkeras.layered_view(model, legend=True, font=font, to_file='model.png', scale_xy=scale_xy, color_map=create_color_map())
-    #     plot_model(model, show_shapes=True, show_layer_names=True)
     return model 
 
 
@@ -988,15 +1029,31 @@ def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=
         colors = generate_colors(len(classes))
         colors_dict = dict(zip(classes, colors))
 
-    if (ind is None):
-        print ('kuku')
+    if (ind is not None):
+        for i in ind:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].iloc[i])
+
+    elif (idx is not None):
+        for i in idx:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].loc[i],color=colors_dict[df[split_type].loc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].loc[i])
+
+    else:
         ind = range(df.shape[0])
-        
-    for i in ind:
-        if (split_type is not None):
-            axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
-        else:
-            axes.plot(df['pred_proba_sorted'].iloc[i])
+        for i in ind:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].iloc[i])
+
+
+
+
 
 
     axes.set_ylim([-40, 0])
@@ -1005,3 +1062,39 @@ def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=
 
     axes.set_xlabel('label')
     axes.set_ylabel('log10(p[label])')
+
+
+
+def get_run_elasped_time (run_dir,print=True):
+    if not os.path.exists(run_dir):
+        print (f'{run_dir} does not exist')
+        return
+    
+    elapsed_time = load_var (run_dir+'/'+'elapsed_time.keras')
+
+    if (print):
+        if (elapsed_time>3600):
+            print (f'elapsed_time:{elapsed_time/3600:.2f}[hours]')
+        else: 
+            print (f'elapsed_time:{elapsed_time/60:.2f}[min]')
+
+    return elapsed_time    
+
+def get_run_mean_epoch_time (run_dir,print=True):
+    elapsed_time = get_run_elasped_time (run_dir,print=print)
+    if (elapsed_time is None):
+        return
+
+    history_file_path = f'{run_dir}/history.pkl'
+
+    if os.path.exists(history_file_path):
+    # load history   
+        with open(history_file_path, 'rb') as file:
+            history = pickle.load(file)
+            history = pd.DataFrame({'history':history})
+        N_epochs = len(history.history.loc['loss'])
+
+        mean_epoch_time = elapsed_time/N_epochs
+    if (print):
+        print (f'mean_epoch_time:{mean_epoch_time}[sec]')
+    return mean_epoch_time
