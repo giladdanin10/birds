@@ -5,6 +5,68 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
+import dill
+import pickle
+import copy
+import itertools
+from keras.layers import Input
+import json
+# Import Data Science Libraries
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from pathlib import Path
+import time
+
+# import birds_utils.BIRDS
+from sklearn.model_selection import train_test_split
+
+# Tensorflow Libraries
+from tensorflow import keras
+from tensorflow.keras import layers,models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import Callback, EarlyStopping,ModelCheckpoint, ReduceLROnPlateau,History
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras import Model
+from tensorflow.keras.layers.experimental import preprocessing
+from tensorflow.keras.utils import plot_model
+from sklearn.utils.class_weight import compute_class_weight
+
+# System libraries
+from pathlib import Path
+import os.path
+import random
+import pickle
+# Visualization Libraries
+import matplotlib.cm as cm
+import cv2
+import seaborn as sns
+import birds_utils as birds
+sns.set_style('darkgrid')
+
+# Metrics
+from sklearn.metrics import classification_report, confusion_matrix
+import itertools
+import dill
+import copy
+
+from tensorflow.keras import layers
+from tensorflow.keras.layers import Input, Dense, Dropout
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from PIL import ImageFont
+import visualkeras
+
+
+
+
+from sklearn.metrics import accuracy_score
+
 
 
 
@@ -71,12 +133,20 @@ def plot_label_images(image_df,label=None,N=None,idx=None,fig_width=20,n_cols=8)
   plt.tight_layout(pad=0.5)
   plt.show()
 
-def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
+def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8,font_size=None):
   if (df.shape[0]==0):
     print('df is empty')
     return
 
-  font_size=fig_width*3/n_cols
+# handle an empty df
+  if (df.shape[0]==0):
+     print('data frame is empty')
+     return
+  
+
+  if (font_size is None):
+      font_size=fig_width*3/n_cols
+
   if (label != None):
     idx = get_label_idx(df,label)
     if (N is None):
@@ -86,11 +156,20 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
   elif (idx is not None):
       N = len(idx)
 
+
   N_image_in_fig = N
+
+  if N==0:
+    print('No iamges to plot')
+    return
+
 
   n_rows = int(np.ceil(N_image_in_fig/n_cols))
   fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_width, fig_width*n_rows/n_cols+2),
                       subplot_kw={'xticks': [], 'yticks': []})
+
+  if (N==1):
+     axes = np.array([axes])
 
   for ind, ax in enumerate(axes.flat):
     if (ind<N):
@@ -98,17 +177,17 @@ def plot_images(df,label=None,N=None,idx=None,fig_width=25,n_cols=8):
       if 'predicted_label' not in df.columns:
         ax.set_title(f'{df.loc[idx[ind]].label} {idx[ind]}',fontsize=font_size)
       else:
-        if df['status'].iloc[ind]:
+        if df['status'].loc[idx[ind]]:
           color = "green"
         else:
           color = "red"
 
-        ax.set_title(f"index:{df.index[ind]}\nTrue: {df.label.iloc[ind]}\nPredicted: {df.predicted_label.iloc[ind]}", color=color,fontsize=font_size)
+        ax.set_title(f"index:{idx[ind]}\nTrue: {df.label.loc[idx[ind]]}\nPredicted: {df.predicted_label.loc[idx[ind]]}", color=color,fontsize=font_size)
+        # ax.set_title(f"index:{df.index[ind]}\nTrue: {df.label.iloc[ind]}\nPredicted: {df.predicted_label.iloc[ind]}", color=color,fontsize=font_size)
 
   # plt.subplots_adjust(wspace=0)
   plt.tight_layout(pad=0.5)
   plt.show()
-
 
 # plot an agumented set of images 
 # inputs:
@@ -153,9 +232,13 @@ def plot_augumented_images(aug_img_obj,image_title=None,sample_image=None,fig_wi
 #                                  (or all samples of the label if there are less than N_samples_per_label).
 #                                  N_samples_per_label = 'all' will return the input df unchanged
      
-def filter_df(df,labels=None,N_samples_per_label=None,status=None):
+def filter_df(df,labels=None,N_samples_per_label=None,status=None,predicted_labels=None):
   if isinstance(labels, str):
     labels = [labels]
+
+  if isinstance(predicted_labels, str):
+    predicted_labels = [predicted_labels]
+
 
   df_filt = df
   if (labels is not None): 
@@ -163,6 +246,13 @@ def filter_df(df,labels=None,N_samples_per_label=None,status=None):
       df_filt = df
     else:  
       df_filt = df[df['label'].isin(labels)]
+  elif (predicted_labels is not None):
+    if (predicted_labels=='all'):
+      df_filt = df
+    else:        
+      df_filt = df[df['predicted_label'].isin(predicted_labels)]
+
+
 
   elif (N_samples_per_label is not None):
     if (N_samples_per_label=='all'):
@@ -179,21 +269,53 @@ def filter_df(df,labels=None,N_samples_per_label=None,status=None):
     df_filt = df_filt[df_filt['status']==status]
   
   return df_filt
+
+
+
 # plot the a histogram of the 1'st N_labels top. if  N_labels is empty it is taken as teh number of all lables that exist
-def plot_labels_count (image_df,N_labels=None):
-    if N_labels==None:
+def plot_labels_count(image_df, N_labels=None):
+    if N_labels is None:
         N_labels = len(image_df['label'].unique())
 
     label_counts = image_df['label'].value_counts()[:N_labels]
 
-    plt.figure(figsize=(20, 6))
+    plt.figure(figsize=(15, 10))
+    fontsize = 15
+
     sns.barplot(x=label_counts.index, y=label_counts.values, alpha=0.8, palette='dark:salmon_r')
-    plt.title(f'Distribution of Top {N_labels} Labels in Image Dataset', fontsize=16)
-    plt.xlabel('label', fontsize=14)
-    plt.ylabel('Count', fontsize=14)
-    plt.xticks(rotation=45)
+    plt.title(f'Distribution of Top {N_labels} Labels in Image Dataset', fontsize=30)
+    plt.xlabel('label', fontsize=fontsize)
+    plt.ylabel('Count', fontsize=fontsize)
+    
+    # Limit X-ticks to 10
+    plt.xticks(rotation=45, fontsize=10)
+    plt.xticks(range(0, len(label_counts.index), max(len(label_counts.index) // 10, 1)), label_counts.index[::max(len(label_counts.index) // 10, 1)])
+    
+    # Add mean +/- std dashed lines
+    mean_line = plt.axhline(label_counts.mean(), color='black', linestyle='dashed', linewidth=2, label='Mean')
+    upper_std_line = plt.axhline(label_counts.mean() + label_counts.std(), color='red', linestyle='dashed', linewidth=2, label='Mean + Std')
+    lower_std_line = plt.axhline(label_counts.mean() - label_counts.std(), color='blue', linestyle='dashed', linewidth=2, label='Mean - Std')
+    
+    # Add min and max lines
+    min_line = plt.axhline(label_counts.min(), color='green', linestyle='dashed', linewidth=2, label='Min')
+    max_line = plt.axhline(label_counts.max(), color='purple', linestyle='dashed', linewidth=2, label='Max')
+    
+    # Add y ticks for the dashed lines
+    y_ticks = [label_counts.mean(), label_counts.mean() + label_counts.std(), label_counts.mean() - label_counts.std(), label_counts.min(), label_counts.max()]
+    plt.yticks(y_ticks, fontsize=10)
+    
+    # Add text above the red dashed line with normalized standard deviation
+    std_norm = label_counts.std() / label_counts.mean() * 100
+    text = f'Normalized STD = {std_norm:.2f}%'
+    plt.text(len(label_counts) // 2, label_counts.mean() + label_counts.std() + 2, text, ha='center', va='bottom', fontsize=fontsize, color='red')
+    
+    # Add legend
+    plt.legend(handles=[mean_line, upper_std_line, lower_std_line, min_line, max_line], loc='upper right', fontsize=fontsize)
+    
     plt.show()
 
+# Example usage:
+# Assuming 'im
 # 'get_image' gets an image from the image_df
 # inputs:
 #   image_df - image data frame
@@ -221,6 +343,47 @@ def create_lables_dic(train_images_obj):
     return labels_dic
     
 
+def get_classification_report(y_test, y_pred):
+    from sklearn import metrics
+    report = metrics.classification_report(y_test, y_pred, output_dict=True)
+    df_classification_report = pd.DataFrame(report).transpose()
+    df_classification_report = df_classification_report.sort_values(by=['f1-score'], ascending=False)
+    return df_classification_report
+
+
+
+def calculate_accuracy_per_label(df, label_col='label', predicted_col='predicted_label'):
+    """
+    Calculate accuracy for each unique label in a DataFrame.
+
+    Parameters:
+    - df: DataFrame
+        The DataFrame containing 'label' and 'predicted_label' columns.
+    - label_col: str, default='label'
+        The column name for the true labels.
+    - predicted_col: str, default='predicted_label'
+        The column name for the predicted labels.
+
+    Returns:
+    - accuracy_per_label: dict
+        A dictionary containing accuracy for each unique label.
+    """
+    accuracy_per_label = {}
+
+    # Get unique labels
+    labels = df[label_col].unique()
+
+    for label in labels:
+        mask = df[label_col] == label
+        accuracy = accuracy_score(df.loc[mask, label_col], df.loc[mask, predicted_col])
+        accuracy_per_label[label] = accuracy
+
+    accuracy_df = pd.DataFrame(list(accuracy_per_label.items()), columns=['label', 'accuracy'])
+    accuracy_df.set_index('label', inplace=True)
+
+    return accuracy_df
+
+
 # apply_model applies a model on the test_images_obj and returns the test_df with the additional 'predict_label' 
 # and 'status' indictiating if the prediction succeeded
 # inputs:
@@ -229,26 +392,713 @@ def create_lables_dic(train_images_obj):
 #   obj_obj - the output of an ImageDataGenerator.flow_from_dataframe loaded with an image_df
 # outpus:
 #   obj_obj - updated image_df
+def apply_model(model,labels_dic,obj_dic,plot_report=True,evaluate=True):
 
-def apply_model(model,labels_dic,obj_dic):
-# apply the model    
-    pred = model.predict(obj_dic['images_obj'])
-    results = model.evaluate(obj_dic['images_obj'], verbose=0)
+    name = obj_dic['name']
+    print('--------------------------------')
+    print(f'  apply model on {name}')
+    print('--------------------------------')
 
-    pred = np.argmax(pred,axis=1)
-    pred = [labels_dic[k] for k in pred]
-    
+# apply the model  
+    pred_proba = model.predict(obj_dic['images_obj'])
+    proba = np.max(pred_proba,axis=1)
+    max_proba_ind = np.argmax(pred_proba,axis=1)
+    pred = [labels_dic[k] for k in max_proba_ind]
+
     obj_dic['df']['predicted_label'] = pred
     obj_dic['df']['status'] = obj_dic['df']['predicted_label']==obj_dic['df']['label']
+    obj_dic['df']['proba'] = proba
 
-    print ('\n')    
-    print ('--------------------------------')
-    print (f"    results for {obj_dic['name']}")
-    print ('--------------------------------')
-    print(f"{obj_dic['name']} Loss: {results[0]:.5f}")
-    print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
+    if (evaluate):
+        results = model.evaluate(obj_dic['images_obj'], verbose=0)
+        obj_dic['accuracy'] = results[1]
+        obj_dic['loss'] = results[0]
 
-    # print(f"{obj_dic['name']}:")
-    print(classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label']))
+        print ('\n')    
+        print ('--------------------------------')
+        print (f"    results for {obj_dic['name']}")
+        print ('--------------------------------')
+        print(f"{obj_dic['name']} Loss: {results[0]:.5f}")
+        print(f"{obj_dic['name']} Accuracy: {(results[1] * 100):.2f}%")
+
+
+    obj_dic['pred_proba'] = pred_proba
+
+
+    obj_dic['classification_report'] = get_classification_report(obj_dic['df']['label'], obj_dic['df']['predicted_label'])
+
+
+    # add accuracy
+    accuracy_df = calculate_accuracy_per_label(obj_dic['df'], label_col='label', predicted_col='predicted_label')
+
+    obj_dic['classification_report'] = obj_dic['classification_report'].merge(accuracy_df, left_index=True, right_index=True)
+
+
+    # plot if desired
+    if (plot_report):
+        plot_columns = list(obj_dic['classification_report'].columns)
+        plot_columns.remove('support')
+        name = obj_dic['name']
+        obj_dic['classification_report'][plot_columns].plot(rot=45,title=f'{name}:classification report')
+
+
+    obj_dic['df']['pred_proba'] = [obj_dic['pred_proba'][i, :] for i in range(obj_dic['pred_proba'].shape[0])]
+
+    obj_dic['df']['pred_proba_sorted'] = obj_dic['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+    
+
+    print(obj_dic['classification_report'] )
 
     return obj_dic
+
+
+
+def save_obj_dic_stack(obj_dic_stack,obj_dic_stack_path):
+    for key in list(obj_dic_stack.keys()):
+
+# remove images_obj as it cannot be saved      
+        if ('images_obj' in obj_dic_stack[key]):
+            obj_dic_stack[key].pop('images_obj')
+
+    with open(obj_dic_stack_path, 'wb') as file:
+        dill.dump(obj_dic_stack, file)
+
+
+def get_obj_dic_stack(model,models_path,train_obj_dic,val_obj_dic,test_obj_dic,params,run_path=None,plot_report=True,evaluate=True):
+    if (run_path is None):
+      run_path = create_run_path_name (models_path,params)    
+
+
+    obj_dic_stack_file_name = run_path+'/obj_dic_stack.pkl'
+
+
+    if os.path.exists(obj_dic_stack_file_name):
+        print(f'loding obj_dic_stack from {obj_dic_stack_file_name}')
+        with open(obj_dic_stack_file_name, 'rb') as file:
+            obj_dic_stack = pickle.load(file)
+
+# recreate the image generators (lost during the saving process)
+        train_generator = ImageDataGenerator(
+            preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+        )
+
+        val_generator = ImageDataGenerator(
+            preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+        )
+
+        test_generator = ImageDataGenerator(
+            preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+        )
+
+
+        obj_dic_stack['train']['images_obj'] = train_generator.flow_from_dataframe(**obj_dic_stack['train']['images_obj_params'])
+        obj_dic_stack['val']['images_obj'] = val_generator.flow_from_dataframe(**obj_dic_stack['val']['images_obj_params'])
+        obj_dic_stack['test']['images_obj'] = test_generator.flow_from_dataframe(**obj_dic_stack['test']['images_obj_params'])
+
+
+
+    else:
+        labels_dic = create_lables_dic(train_obj_dic['images_obj'])
+        test_obj_dic = apply_model(model,labels_dic,test_obj_dic,plot_report=plot_report,evaluate=evaluate)
+        train_obj_dic = apply_model(model,labels_dic,train_obj_dic,plot_report=plot_report,evaluate=evaluate)
+        val_obj_dic = apply_model(model,labels_dic,val_obj_dic,plot_report=plot_report,evaluate=evaluate)
+
+
+        # def analyze_classifaction_reports(train_obj_dic,val_obj_dic,test_obj_dic):
+        obj_dic_stack = {'train':train_obj_dic,'val':val_obj_dic,'test':test_obj_dic}
+
+        print(obj_dic_stack['test']['classification_report'])
+        save_obj_dic_stack (obj_dic_stack,obj_dic_stack_file_name)
+
+# add the pred_proba vaector as a column in the df for all 3 dfs
+    obj_dic_stack['test']['df']['pred_proba'] = [obj_dic_stack['test']['pred_proba'][i, :] for i in range(obj_dic_stack['test']['pred_proba'].shape[0])]
+    obj_dic_stack['val']['df']['pred_proba'] = [obj_dic_stack['val']['pred_proba'][i, :] for i in range(obj_dic_stack['val']['pred_proba'].shape[0])]
+    obj_dic_stack['train']['df']['pred_proba'] = [obj_dic_stack['train']['pred_proba'][i, :] for i in range(obj_dic_stack['train']['pred_proba'].shape[0])]
+
+    obj_dic_stack['test']['df']['pred_proba_sorted'] = obj_dic_stack['test']['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+    obj_dic_stack['val']['df']['pred_proba_sorted'] = obj_dic_stack['val']['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+    obj_dic_stack['train']['df']['pred_proba_sorted'] = obj_dic_stack['train']['df']['pred_proba'].apply(lambda x: np.log10(prepare_for_log(np.sort(x))))
+
+
+    return obj_dic_stack    
+
+def plot_obj_dic_stack_score(obj_dic_stack, score='f1', base_df_type='test'):
+    df = pd.DataFrame()
+
+    for key in obj_dic_stack.keys():
+        df_pre = obj_dic_stack[key]['classification_report']
+        df_pre = df_pre.add_suffix(f'_{key}')
+        df = pd.concat([df, df_pre], axis=1)
+
+    # Sort by the specified score for the base_df_type
+    df = df.sort_values(f'{score}_{base_df_type}', ascending=True)
+
+    # Plot lines for each key
+    ax = df.filter(like=score, axis=1).plot(rot=45, linestyle='-')
+
+    # Plot average lines with corresponding colors
+    for line, key in zip(ax.get_lines(), obj_dic_stack.keys()):
+        avg_score = df[f'{score}_{key}'].mean()
+        line_color = line.get_color()
+        ax.axhline(avg_score, linestyle='--', color=line_color)
+
+        # Add y ticks on the right y-axis
+        ax2 = ax.twinx()
+        ax2.set_yticks([avg_score])
+        ax2.set_yticklabels([f'{avg_score:.2f}'], color=line_color)
+        ax2.set_ylim(ax.get_ylim())  # Match the y-limits with the left y-axis
+
+    plt.show()
+
+
+def plot_label_false_and_true(obj_dic_stack,ana_label=None,ana_label_ind=0,n_cols=5,N=5,false_ind=0,false_label = None):
+    df = obj_dic_stack['train']['classification_report'].sort_values('f1-score')
+
+    if (ana_label is None):
+        ana_label = df.index[ana_label_ind]
+
+    # get the data_frame of the false detection 
+    false_df = filter_df(obj_dic_stack['train']['df'],labels=ana_label,status=False)
+
+    # get the data_frame of the true detection 
+    true_df = filter_df(obj_dic_stack['train']['df'],labels=ana_label,status=True)
+
+    # plot the distribution of the false detection
+    false_label_count_df = false_df.groupby('predicted_label').count().sort_values('status',ascending=False)
+    ax = false_label_count_df['status'].plot(kind='bar', title=f'{ana_label}:histogram of false label counts',rot=45)
+    ax.set_xticks(range(len(false_label_count_df)))
+    ax.set_xticklabels(false_label_count_df.index)
+
+    if (false_label is None):
+        false_label = false_label_count_df.index[false_ind]
+
+# filter the false_df according to the false_label    
+    false_df = filter_df(false_df,predicted_labels=false_label)
+    plot_images(false_df,idx=list(false_df.index[0:N]),n_cols=n_cols)
+    plot_label_images(obj_dic_stack['train']['df'],N=N,label=false_label,n_cols=n_cols)
+
+
+
+def get_other_images(df):
+    df = df[df['Filepath'].str.contains('other', case=False, na=False)]
+    return df
+
+def remove_other_images(df):
+    other_indexes = df[df['Filepath'].str.contains('other', case=False, na=False)].index
+    df = df.drop(other_indexes)
+    return df
+
+def save_var(var,file_name):
+    status = True
+    try:
+        with open(file_name, 'wb') as file:
+            pickle.dump(var, file)
+    except:
+        status = False
+        print(f'could not open {file_name} for writing')
+    return status
+
+def load_var(file_name):
+    var = None
+    try:
+        with open(file_name, 'rb') as file:
+            var = pickle.load(file)
+    except:
+        print(f'could not open {file_name} for reading')
+    return var
+
+
+def create_run_path_name(base_path,params):
+    
+    if (base_path[-1] == '/'):
+        run_path_name = base_path[:-1]
+    else:
+        run_path_name = base_path
+
+    for key in params.keys():
+        run_path_name = f'{run_path_name}_{params[key]}'
+    
+    run_path_name = run_path_name + '/'
+    return run_path_name
+
+
+def get_params_permutations(params):
+    # Get all keys and their associated value lists
+    keys, value_lists = zip(*params.items())
+
+    # Get all permutations of values associated with each key
+    permutations_list = list(itertools.product(*value_lists))
+
+    # Create a list of dictionaries, each representing a combination of parameter values
+    param_permutations = [dict(zip(keys, values)) for values in permutations_list]
+
+    return param_permutations
+
+
+
+# def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False,augment=None):
+#     print('-----------------')
+#     print('  create model')
+#     print('-----------------')
+          
+#     if ('dense1_size' not in params.keys()):
+#         params['dense1_size'] = 128
+
+#     if ('dense2_size' not in params.keys()):
+#         params['dense2_size'] = 256
+
+#     if ('N_labels' not in params.keys()):
+#         params['N_labels'] = 2
+    
+#     if (visualize_model):
+#         input_shape=(224, 224, 3)
+#         inputs = Input(shape=input_shape)
+#         font_size = 10
+#         scale_xy=0.8
+#     else:
+#         inputs = pretrained_model.input
+#         inputs.__dict__['_type_spec']
+#         inputs = pretrained_model.input
+#         font_size = 100
+#         scale_xy=3
+
+#     if (AUGMENTATON):
+#         input_shape=(224, 224, 3)
+#         inputs = Input(shape=input_shape)
+#         x = augment(inputs)
+#         x = pretrained_model(x)
+#         x = Dense(params['dense1_size'], activation='relu')(x)
+#         x = Dropout(0.45)(x)
+#         x = Dense(params['dense2_size'], activation='relu')(x)
+#         x = Dropout(0.45)(x)
+
+#     else:
+#         if (visualize_model):
+#             # x = augment(inputs)
+#             # x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
+#             x = inputs
+#             x = pretrained_model(x)
+#             x = Dense(params['dense1_size'], activation='relu')(x)
+#             x = Dropout(0.45)(x)
+#             x = Dense(params['dense2_size'], activation='relu')(x)
+#             x = Dropout(0.45)(x)
+#         else:
+#             inputs = pretrained_model.input
+#             # x = augment(inputs)
+#             x = Dense(params['dense1_size'], activation='relu')(pretrained_model.output)
+#             x = Dropout(0.45)(x)
+#             x = Dense(params['dense2_size'], activation='relu')(x)
+#             x = Dropout(0.45)(x)
+        
+
+
+#     outputs = Dense(params['N_labels'], activation='softmax')(x)
+
+#     model = Model(inputs=inputs, outputs=outputs)
+#     model.compile(
+#         optimizer=Adam(0.0001),
+#         loss='categorical_crossentropy',
+#         metrics=['accuracy']
+#     )
+        
+
+
+
+#     # Adjust the font size
+#     # font = ImageFont.truetype("arial.ttf", font_size)
+
+    
+#     # if (visualize_model):
+#     #     # Save the model image to a file with specific colors for each layer
+#     #     visualkeras.layered_view(model, legend=True, font=font, to_file='model.png', scale_xy=scale_xy, color_map=create_color_map())
+#     #     plot_model(model, show_shapes=True, show_layer_names=True)
+#     return model 
+
+
+def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON = False,augment=None):
+    print('-----------------')
+    print('  create model')
+    print('-----------------')
+          
+    if ('dense1_size' not in params.keys()):
+        params['dense1_size'] = 128
+
+    if ('dense2_size' not in params.keys()):
+        params['dense2_size'] = 256
+
+    if ('N_labels' not in params.keys()):
+        params['N_labels'] = 2
+    
+    input_shape=(224, 224, 3)
+    inputs = Input(shape=input_shape)
+
+    x = inputs
+    if (AUGMENTATON):
+        x = augment(x)
+    x = pretrained_model(x)
+    if (params['dense1_size'] != 0):
+        x = Dense(params['dense1_size'], activation='relu')(x)
+        x = Dropout(0.45)(x)
+    if (params['dense2_size'] != 0):
+        x = Dense(params['dense2_size'], activation='relu')(x)
+        x = Dropout(0.45)(x)
+
+
+    outputs = Dense(params['N_labels'], activation='softmax')(x)
+
+    model = Model(inputs=inputs, outputs=outputs)
+    model.compile(
+        optimizer=Adam(0.0001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+        
+    return model 
+
+
+
+
+
+def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=None):
+    print('--------------------------------')
+    print(f'  train model')
+    print('--------------------------------')
+
+
+    if (run_path is None):
+      run_path = create_run_path_name (models_path,params)
+      
+    if ('N_epochs_patitence' not in params.keys()):
+        params['N_epochs_patitence'] = 128
+
+    if ('N_epochs') not in params.keys():
+        params['N_epochs'] = 100
+
+    if ('N_labels') not in params.keys():
+        params['N_labels'] = 2
+    
+
+    RUN_NAME = os.path.basename(os.path.normpath(run_path))
+
+    # Create checkpoint callback
+    checkpoint_path = f'{run_path}/check_point.h5'
+    print(checkpoint_path)
+    checkpoint_callback = ModelCheckpoint(checkpoint_path,
+                                        save_weights_only=False,
+                                        monitor="val_accuracy",
+                                        save_best_only=True)
+
+    # Setup EarlyStopping callback to stop training if model's val_loss doesn't improve for 3 epochs
+    early_stopping = EarlyStopping(monitor = "val_loss", # watch the val loss metric
+                                patience = params['N_epochs_patitence'],
+                                restore_best_weights = True) # if val loss decreases for 3 epochs in a row, stop training
+
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=1e-6)
+
+
+    model_file_path = f'{run_path}/check_point.h5'
+    history_file_path = f'{run_path}/history.pkl'
+
+    if os.path.exists(model_file_path):
+    # load model    
+        print(f'loading {RUN_NAME} and related history')
+        model = keras.models.load_model(model_file_path)
+        # Later, you can load the history object
+    # load history   
+        with open(history_file_path, 'rb') as file:
+            history = pickle.load(file)
+            history = pd.DataFrame({'history':history})
+
+    else:
+        if os.path.exists(checkpoint_path):
+            print (f'loading check point from {checkpoint_path}')
+            model = keras.models.load_model(checkpoint_path)
+        
+        # Calculate class weights
+        labels = train_obj_dic['df']['label'].tolist() # Make sure this is your training data labels
+        class_weights = compute_class_weight('balanced', classes=np.unique(labels), y=labels)
+        class_weights_dict = dict(enumerate(class_weights))
+
+        start_time = time.time()
+
+        history = model.fit(
+            train_obj_dic['images_obj'],
+            steps_per_epoch=len(train_obj_dic['images_obj']),
+            validation_data=val_obj_dic['images_obj'],
+            validation_steps=len(val_obj_dic['images_obj']),
+            epochs=params['N_epochs'],
+            class_weight=class_weights_dict,
+            callbacks=[
+                early_stopping,
+                # birds.create_tensorboard_callback("training_logs",
+                #                             "bird_classification"),
+                checkpoint_callback,
+                reduce_lr
+            ]
+        )
+
+        end_time = time.time()
+
+# Calculate the elapsed time
+        elapsed_time = end_time - start_time        
+        birds.save_var(elapsed_time,f'{run_path}/elapsed_time.keras')
+
+        model.save(model_file_path)
+        with open(history_file_path, 'wb') as file:
+            pickle.dump(history.history, file)
+
+    get_run_mean_epoch_time(run_path)
+    get_run_elasped_time(run_path)
+    return model,history
+
+
+def create_color_map():
+    color_map = defaultdict(dict)
+    # customize the colours
+    color_map[layers.Conv2D]['fill'] = '#00f5d4'
+    color_map[layers.MaxPooling2D]['fill'] = '#8338ec'
+    color_map[layers.Dropout]['fill'] = '#03045e'
+    color_map[layers.Dense]['fill'] = '#fb5607'
+    color_map[layers.Flatten]['fill'] = '#ffbe0b'
+    color_map[layers.Dropout]['fill'] = '#03045e'
+    return color_map
+
+
+def get_filtered_subfolders(base_dir, filter_str):
+    # Ensure the base directory exists
+    if not os.path.exists(base_dir):
+        print(f"The base directory '{base_dir}' does not exist.")
+        return []
+
+    # Get the list of subfolders
+    subfolders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
+
+    # Filter subfolders based on the provided filter string
+    filtered_subfolders = [folder+'/' for folder in subfolders if filter_str in folder]
+
+    return filtered_subfolders
+
+import os
+
+def get_filtered_files(folder_path, filtering_str,full_path = 'True'):
+    filtered_files = []
+
+    # Check if the folder exists
+    if not os.path.exists(folder_path):
+        print(f"The folder '{folder_path}' does not exist.")
+        return filtered_files
+
+    # Iterate through the files in the folder
+    for file_name in os.listdir(folder_path):
+        # Check if the filtering string is present in the file name
+        # print(file_name)
+        if filtering_str in file_name:
+            if (not full_path):
+                # Add the file to the list if it matches the criteria
+                filtered_files.append(file_name)
+            else:
+                filtered_files.append(folder_path+file_name)
+
+    return filtered_files
+
+
+def plot_training_history(files,plot_str=''):
+    if not isinstance(files, list):
+        files = [files]
+
+    # Create subplots for each metric
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
+    axes = axes.flatten()
+
+    legend_list = []
+    for file_index, file in enumerate(files):
+        # Load training history from the file using birds.load_var
+        history = birds.load_var(file)
+
+        # Create a DataFrame from the history
+        history_df = pd.DataFrame(history)
+
+        # Extract training and validation metrics
+        accuracy = history_df['accuracy']
+        val_accuracy = history_df['val_accuracy']
+        loss = history_df['loss']
+        val_loss = history_df['val_loss']
+
+        # create the legends
+        substrings = file.split('_')
+        mat_size = substrings[-5:-3]
+        str = mat_size[0]+'_'+mat_size[1]
+        legend_list.append(str)
+
+        if (str=='128_256'):
+            LineWidth = 3
+        else:
+            LineWidth = 1
+            
+        # Plotting on each subplot
+        axes[0].plot(accuracy, label=f'File {file_index + 1}',linewidth=LineWidth)
+        axes[1].plot(val_accuracy, label=f'File {file_index + 1}',linewidth=LineWidth)
+        axes[2].plot(loss, label=f'File {file_index + 1}',linewidth=LineWidth)
+        axes[3].plot(val_loss, label=f'File {file_index + 1}',linewidth=LineWidth)
+
+
+
+    # Set titles and labels
+    axes[0].set_title('Training Accuracy'+plot_str)
+    axes[1].set_title('Validation Accuracy'+plot_str)
+    axes[2].set_title('Training Loss'+plot_str)
+    axes[3].set_title('Validation Loss'+plot_str)
+
+
+    for ax in axes:
+        ax.set_xlabel('Epochs')
+        ax.legend(legend_list)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_history_single_run(history,plot_str=f'',xlim=60):
+    accuracy = history.history['accuracy']
+    val_accuracy = history.history['val_accuracy']
+
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    epochs = range(len(accuracy))
+    plt.plot(epochs, accuracy, 'b', label='Training accuracy')
+    plt.plot(epochs, val_accuracy, 'r', label='Validation accuracy')
+    plt.xlabel('epocs')
+    plt.ylabel('validate')
+    plt.xlim(0,xlim)
+
+    plt.title('Training and validation accuracy'+plot_str)
+    plt.legend()
+    plt.figure()
+    plt.plot(epochs, loss, 'b', label='Training loss')
+    plt.plot(epochs, val_loss, 'r', label='Validation loss')
+    plt.xlabel('epocs')
+    plt.ylabel('loss')
+    plt.title('Training and validation loss'+plot_str)
+    plt.legend()
+    plt.xlim(0,xlim)
+    plt.show()
+
+
+from PIL import Image
+def resize_images(df):
+    for i in range(1):
+        img = Image.open(df['Filepath'].iloc[i])
+
+        # Resize the image
+        resized_img = img.resize(TARGET_SIZE)
+        plt.imshow(resized_img)
+        resized_img.save(df['Filepath'].iloc[i])    
+
+
+def get_model_layers_summary(model):
+    layer_counts = {}
+
+    for layer in model.layers:
+        # Get the type of the layer
+        layer_type = type(layer).__name__
+        
+        # Update the count in the dictionary
+        layer_counts[layer_type] = layer_counts.get(layer_type, 0) + 1
+
+    df = pd.DataFrame.from_dict(layer_counts, orient='index')
+    df = df.rename(columns={df.columns[0]: 'N_layers'})
+    return df
+
+
+def prepare_for_log(vector_with_zeros):
+    vector_with_zeros_nonzero = np.where(vector_with_zeros == 0, 1e-40, vector_with_zeros)
+    return vector_with_zeros_nonzero
+
+
+def generate_colors(N, colormap='tab10'):
+    color_map = plt.get_cmap(colormap)
+    return [color_map(i) for i in np.linspace(0, 1, N)]
+
+
+def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=None):
+    if axes is None:
+        plt.figure(figsize=(4, 4))
+        axes = plt.gca()
+
+    if (split_type is not None):
+        classes = df[split_type].unique()
+        colors = generate_colors(len(classes))
+        colors_dict = dict(zip(classes, colors))
+
+    if (ind is not None):
+        for i in ind:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].iloc[i])
+
+    elif (idx is not None):
+        for i in idx:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].loc[i],color=colors_dict[df[split_type].loc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].loc[i])
+
+    else:
+        ind = range(df.shape[0])
+        for i in ind:
+            if (split_type is not None):
+                axes.plot(df['pred_proba_sorted'].iloc[i],color=colors_dict[df[split_type].iloc[i]])
+            else:
+                axes.plot(df['pred_proba_sorted'].iloc[i])
+
+
+
+
+
+
+    axes.set_ylim([-40, 0])
+    if title is not None:
+        axes.set_title(title)
+
+    axes.set_xlabel('label')
+    axes.set_ylabel('log10(p[label])')
+
+
+
+def get_run_elasped_time (run_dir,print_message=True):
+    if not os.path.exists(run_dir):
+        print (f'{run_dir} does not exist')
+        return
+    
+    elapsed_time = load_var(run_dir+'/'+'elapsed_time.keras')
+
+    if (print_message):    
+        if (elapsed_time>3600):
+            print (f'elapsed_time:{elapsed_time/3600:.2f}[hours]')
+        else: 
+            print (f'elapsed_time:{elapsed_time/60:.2f}[min]')
+
+    return elapsed_time    
+    
+
+def get_run_mean_epoch_time (run_dir,print_message=True):
+    elapsed_time = get_run_elasped_time (run_dir,print_message=print_message)
+    if (elapsed_time is None):
+        return
+
+    history_file_path = f'{run_dir}/history.pkl'
+
+    if os.path.exists(history_file_path):
+    # load history   
+        with open(history_file_path, 'rb') as file:
+            history = pickle.load(file)
+            history = pd.DataFrame({'history':history})
+        N_epochs = len(history.history.loc['loss'])
+
+        mean_epoch_time = elapsed_time/N_epochs
+    if (print_message):
+        print (f'N_epochs:{N_epochs}')
+        print (f'mean_epoch_time:{mean_epoch_time:.2f}[sec]')
+    return mean_epoch_time
