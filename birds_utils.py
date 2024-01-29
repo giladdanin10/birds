@@ -847,6 +847,8 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
         with open(history_file_path, 'wb') as file:
             pickle.dump(history.history, file)
 
+    get_run_mean_epoch_time(run_path)
+    get_run_elasped_time(run_path)
     return model,history
 
 
@@ -1065,23 +1067,24 @@ def plot_pred_proba_sorted(df,idx=None,ind=None,title=None,axes=None,split_type=
 
 
 
-def get_run_elasped_time (run_dir,print=True):
+def get_run_elasped_time (run_dir,print_message=True):
     if not os.path.exists(run_dir):
         print (f'{run_dir} does not exist')
-        return   
+        return
     
-    elapsed_time = load_var (run_dir+'/'+'elapsed_time.keras')
+    elapsed_time = load_var(run_dir+'/'+'elapsed_time.keras')
 
-    if (print):
+    if (print_message):    
         if (elapsed_time>3600):
             print (f'elapsed_time:{elapsed_time/3600:.2f}[hours]')
         else: 
             print (f'elapsed_time:{elapsed_time/60:.2f}[min]')
 
     return elapsed_time    
+    
 
-def get_run_mean_epoch_time (run_dir,print=True):
-    elapsed_time = get_run_elasped_time (run_dir,print=print)
+def get_run_mean_epoch_time (run_dir,print_message=True):
+    elapsed_time = get_run_elasped_time (run_dir,print_message=print_message)
     if (elapsed_time is None):
         return
 
@@ -1095,6 +1098,7 @@ def get_run_mean_epoch_time (run_dir,print=True):
         N_epochs = len(history.history.loc['loss'])
 
         mean_epoch_time = elapsed_time/N_epochs
-    if (print):
-        print (f'mean_epoch_time:{mean_epoch_time}[sec]')
+    if (print_message):
+        print (f'N_epochs:{N_epochs}')
+        print (f'mean_epoch_time:{mean_epoch_time:.2f}[sec]')
     return mean_epoch_time
