@@ -4,5 +4,6 @@ data All/*
 __pycache__/*
 *pkl*
 *jpg*
+stuff/*
 
 
