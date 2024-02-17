@@ -19,7 +19,7 @@ import tensorflow as tf
 from pathlib import Path
 import time
 
-# import birds_utils.BIRDS
+import math
 from sklearn.model_selection import train_test_split
 
 # Tensorflow Libraries
@@ -62,13 +62,7 @@ import seaborn as sns
 from PIL import ImageFont
 import visualkeras
 
-
-
-
 from sklearn.metrics import accuracy_score
-
-
-
 
 # load the images into a data frame
 def load_data(project_dir):
@@ -82,7 +76,6 @@ def load_data(project_dir):
   # Concatenate filepaths and labels
   image_df = pd.concat([filepaths, labels], axis=1)
   return image_df
-
 
 def get_label_idx(image_df,label):
   idx = list(image_df[image_df['label'].isin([label])].index)
@@ -685,7 +678,8 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
     return model 
 
 
-def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=None):
+
+def train_model (model,models_path,train_obj_dic,val_obj_dic,params, BATCH_SIZE, run_path=None):
     print('--------------------------------')
     print(f'  train model')
     print('--------------------------------')
@@ -725,6 +719,7 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
     model_file_path = f'{run_path}/check_point.h5'
     history_file_path = f'{run_path}/history.pkl'
         # Function to calculate dataset size
+        
     def get_dataset_size(dataset):
         return sum(1 for _ in dataset)
 
@@ -758,20 +753,30 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params,run_path=Non
 
         start_time = time.time()
 
+        # history = model.fit(
+        #     train_obj_dic['images_obj'],
+        #     steps_per_epoch=steps_per_epoch,
+        #     validation_data=val_obj_dic['images_obj'],
+        #     validation_steps=validation_steps #len(val_obj_dic['images_obj']),
+        #     epochs=params['N_epochs'],
+        #     class_weight=class_weights_dict,
+        #     callbacks=[
+        #         early_stopping,
+        #         # birds.create_tensorboard_callback("training_logs",
+        #         #                             "bird_classification"),
+        #         checkpoint_callback,
+        #         reduce_lr
+        #     ]
+        # )
+        
         history = model.fit(
             train_obj_dic['images_obj'],
             steps_per_epoch=steps_per_epoch,
             validation_data=val_obj_dic['images_obj'],
-            validation_steps=len(val_obj_dic['images_obj']),
+            validation_steps=validation_steps,  # Updated to use calculated value
             epochs=params['N_epochs'],
             class_weight=class_weights_dict,
-            callbacks=[
-                early_stopping,
-                # birds.create_tensorboard_callback("training_logs",
-                #                             "bird_classification"),
-                checkpoint_callback,
-                reduce_lr
-            ]
+            callbacks=[early_stopping, checkpoint_callback, reduce_lr]
         )
 
         end_time = time.time()
