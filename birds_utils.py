@@ -677,6 +677,13 @@ def create_model(pretrained_model,params={},visualize_model = False,AUGMENTATON 
         plot_model(model, show_shapes=True, show_layer_names=True)
     return model 
 
+from tensorflow.keras.callbacks import Callback
+
+class DebugShapesCallback(Callback):
+    def on_batch_end(self, batch, logs=None):
+        y_true = self.validation_data[1]  # Assuming label (y_true) is the second element
+        y_pred = self.model.predict(self.validation_data[0])
+        print("Batch:", batch, "| y_true shape:", y_true.shape, "| y_pred shape:", y_pred.shape)
 
 
 def train_model (model,models_path,train_obj_dic,val_obj_dic,params, BATCH_SIZE, run_path=None):
@@ -769,15 +776,49 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params, BATCH_SIZE,
         #     ]
         # )
         
+        # Create the custom callback
+        debug_shapes_callback = DebugShapesCallback()
+
+        # Include it in the callbacks list
+        # callbacks_list = [early_stopping, checkpoint_callback, reduce_lr, debug_shapes_callback]
+        callbacks_list = [early_stopping, checkpoint_callback, reduce_lr]
+        # Ensure steps_per_epoch is at least 1
+        if steps_per_epoch <= 0:
+            steps_per_epoch = 1
+
+        # Calculate validation_steps
+        # Assuming val_obj_dic['images_obj'] is your validation dataset
+        total_val_samples = get_dataset_size(val_obj_dic['images_obj'])
+        validation_steps = total_val_samples // BATCH_SIZE
+        if validation_steps <= 0:
+            validation_steps = 1
+
+        # Add debugging statements to verify the values
+        print("Training with the following settings:")
+        print(f"Steps per epoch: {steps_per_epoch}")
+        print(f"Validation steps: {validation_steps}")
+
+        # Now, use these values in model.fit()
         history = model.fit(
             train_obj_dic['images_obj'],
             steps_per_epoch=steps_per_epoch,
             validation_data=val_obj_dic['images_obj'],
-            validation_steps=validation_steps,  # Updated to use calculated value
+            validation_steps=validation_steps,
             epochs=params['N_epochs'],
             class_weight=class_weights_dict,
-            callbacks=[early_stopping, checkpoint_callback, reduce_lr]
+            callbacks=callbacks_list
         )
+
+        
+        # history = model.fit(
+        #     train_obj_dic['images_obj'],
+        #     steps_per_epoch=steps_per_epoch,
+        #     validation_data=val_obj_dic['images_obj'],
+        #     validation_steps=validation_steps,  # Updated to use calculated value
+        #     epochs=params['N_epochs'],
+        #     class_weight=class_weights_dict,
+        #     callbacks=callbacks_list
+        # )
 
         end_time = time.time()
 
@@ -785,7 +826,7 @@ def train_model (model,models_path,train_obj_dic,val_obj_dic,params, BATCH_SIZE,
         elapsed_time = end_time - start_time        
         birds.save_var(elapsed_time,f'{run_path}/elapsed_time.keras')
 
-        model.save(model_file_path)
+        model.save(model_file_path, save_format='tf')
         with open(history_file_path, 'wb') as file:
             pickle.dump(history.history, file)
 
